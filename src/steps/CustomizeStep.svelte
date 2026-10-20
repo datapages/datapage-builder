@@ -1,6 +1,6 @@
 <script lang="ts">
   import { errorMessage, github } from '../lib/clients';
-  import { CUSTOMIZED_FILES, customizeFiles } from '../lib/customize';
+  import { CUSTOMIZED_FILES, buildCommit } from '../lib/customize';
   import { fetchCitation } from '../lib/doi';
   import { wizard } from '../lib/state.svelte';
   import { plotConfigProblems, suggestPlotConfig } from '../lib/variables';
@@ -63,19 +63,21 @@
       const gh = github();
       const ref = { owner: wizard.repo.owner, repo: wizard.repo.name };
       const files = await gh.readFiles(ref, CUSTOMIZED_FILES);
-      const customized = customizeFiles(files, {
+      const siteUrl = (await gh.pagesUrl(ref)) ?? `https://${ref.owner.toLowerCase()}.github.io/${ref.repo}/`;
+      const changes = buildCommit(files, {
         title: c.title.trim(),
         subtitle: c.subtitle,
         description: c.description,
         redivis: { user: wizard.data.owner, dataset: wizard.data.dataset, table: wizard.data.table },
         plot,
         repoUrl: `https://github.com/${ref.owner}/${ref.repo}`,
+        siteUrl,
+        datasetUrl: wizard.data.datasetUrl,
         links: c.links,
         citation: c.citation,
         primaryColor: c.primaryColor,
       });
-      const changed = Object.fromEntries(Object.entries(customized).filter(([path, text]) => text !== files[path as keyof typeof files]));
-      c.commitSha = await gh.commitFiles(ref, changed, `Customize datapage for ${wizard.data.owner}.${wizard.data.dataset}`);
+      c.commitSha = await gh.commitFiles(ref, changes, `Customize datapage for ${wizard.data.owner}.${wizard.data.dataset}`);
       wizard.publish.siteUrl = null;
       onnext();
     } catch (e) {

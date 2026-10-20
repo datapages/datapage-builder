@@ -102,17 +102,26 @@ export class GitHub {
     return Object.fromEntries(entries) as Record<P, string>;
   }
 
-  /** Commits text files to the default branch in one commit and returns its sha. */
-  async commitFiles(ref: RepoRef, files: Record<string, string>, message: string): Promise<string> {
+  /**
+   * Commits text files to the default branch in one commit and returns its sha.
+   * A null value deletes the file (paths that don't exist are skipped).
+   */
+  async commitFiles(ref: RepoRef, files: Record<string, string | null>, message: string): Promise<string> {
     const repo = await this.getRepo(ref);
     const branch = repo?.default_branch ?? 'main';
     const { data: head } = await this.octokit.rest.git.getRef({ ...ref, ref: `heads/${branch}` });
     const { data: parent } = await this.octokit.rest.git.getCommit({ ...ref, commit_sha: head.object.sha });
-    const { data: tree } = await this.octokit.rest.git.createTree({
-      ...ref,
-      base_tree: parent.tree.sha,
-      tree: Object.entries(files).map(([path, content]) => ({ path, mode: '100644' as const, type: 'blob' as const, content })),
-    });
+    // deleting a path that isn't in the tree fails, so only delete what's there
+    const { data: existing } = await this.octokit.rest.git.getTree({ ...ref, tree_sha: parent.tree.sha, recursive: 'true' });
+    const paths = new Set(existing.tree.map((t) => t.path));
+    const entries = Object.entries(files)
+      .filter(([path, content]) => content !== null || paths.has(path))
+      .map(([path, content]) =>
+        content === null
+          ? { path, mode: '100644' as const, type: 'blob' as const, sha: null }
+          : { path, mode: '100644' as const, type: 'blob' as const, content },
+      );
+    const { data: tree } = await this.octokit.rest.git.createTree({ ...ref, base_tree: parent.tree.sha, tree: entries });
     const { data: commit } = await this.octokit.rest.git.createCommit({ ...ref, message, tree: tree.sha, parents: [parent.sha] });
     await this.octokit.rest.git.updateRef({ ...ref, ref: `heads/${branch}`, sha: commit.sha });
     return commit.sha;

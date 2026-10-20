@@ -87,7 +87,7 @@
         explains what each file does. A few things to do next:
       </p>
       <ul>
-        <li>Replace the template's penguin images in <code>images/</code>, and the image references in <code>index.qmd</code> and <code>about.qmd</code>.</li>
+        <li>Add images to the homepage or About page: put them in <code>images/</code> and reference them from <code>index.qmd</code> or <code>about.qmd</code>.</li>
         <li>Add a description, variable labels, and documentation to your dataset on Redivis{#if wizard.data.datasetUrl} (<a href={wizard.data.datasetUrl} target="_blank" rel="noopener">open it</a>){/if}.</li>
         <li>
           To work on it locally: clone the repo, run <code>renv::restore()</code> in R, then <code>quarto preview</code>.
