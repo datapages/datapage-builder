@@ -1,0 +1,36 @@
+{
+  "name": "datapage-builder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev --config worker/wrangler.toml",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "deploy:worker": "wrangler deploy --config worker/wrangler.toml"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "papaparse": "^5.7.0",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261019.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/papaparse": "^5.5.2",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261019.1": true
+  }
+}

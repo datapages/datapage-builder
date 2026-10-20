@@ -1,0 +1,279 @@
+:root {
+  --bg: #f7f6f9;
+  --surface: #ffffff;
+  --text: #1f1d24;
+  --muted: #625e6b;
+  --border: #dedbe4;
+  --accent: #7f3b97;
+  --accent-text: #ffffff;
+  --accent-soft: #f2e9f5;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --warn-soft: #fff8e1;
+  --err: #c62828;
+  --err-soft: #fdecec;
+  --radius: 10px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #17151b;
+    --surface: #211e26;
+    --text: #efedf2;
+    --muted: #a7a2b0;
+    --border: #3a3541;
+    --accent: #c08ad4;
+    --accent-text: #17151b;
+    --accent-soft: #33273a;
+    --ok: #4ac26b;
+    --warn: #e3b341;
+    --warn-soft: #33290f;
+    --err: #ff7b72;
+    --err-soft: #3b1f1f;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #17151b;
+  --surface: #211e26;
+  --text: #efedf2;
+  --muted: #a7a2b0;
+  --border: #3a3541;
+  --accent: #c08ad4;
+  --accent-text: #17151b;
+  --accent-soft: #33273a;
+  --ok: #4ac26b;
+  --warn: #e3b341;
+  --warn-soft: #33290f;
+  --err: #ff7b72;
+  --err-soft: #3b1f1f;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.55 'Nunito Sans', system-ui, sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: 1.35rem;
+  margin: 0 0 0.25rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+p {
+  margin: 0.5rem 0;
+}
+
+code {
+  font-size: 0.9em;
+  background: var(--accent-soft);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.stack > * + * {
+  margin-top: 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+button,
+.button {
+  font: inherit;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button.secondary,
+.button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+}
+
+label .hint {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+input[type='text'],
+input[type='url'],
+textarea,
+select {
+  font: inherit;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+label.checkbox {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-weight: 400;
+}
+
+label.checkbox input {
+  margin-top: 0.35rem;
+}
+
+.notice {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  border: 1px solid;
+}
+
+.notice.error {
+  background: var(--err-soft);
+  border-color: var(--err);
+}
+
+.notice.warn {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+}
+
+.notice ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.progress-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.progress-list li {
+  padding: 0.2rem 0;
+}
+
+.progress-list .done::before {
+  content: '✓ ';
+  color: var(--ok);
+  font-weight: 800;
+}
+
+.progress-list .active::before {
+  content: '… ';
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.progress-list .failed::before {
+  content: '✗ ';
+  color: var(--err);
+  font-weight: 800;
+}
+
+.progress-list .pending {
+  color: var(--muted);
+}
+
+progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+.card > h3:first-child {
+  margin-top: 0;
+}

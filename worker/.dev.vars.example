@@ -1,0 +1,4 @@
+# Copy to worker/.dev.vars (gitignored) with the development OAuth App's values.
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+ALLOWED_ORIGINS=http://localhost:5173

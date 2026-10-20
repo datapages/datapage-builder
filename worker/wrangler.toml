@@ -1,0 +1,9 @@
+name = "datapage-builder-auth"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+
+# GITHUB_CLIENT_SECRET is set with `npx wrangler secret put GITHUB_CLIENT_SECRET --config worker/wrangler.toml`.
+# For local development, put the dev OAuth App's values in worker/.dev.vars (see .dev.vars.example).
+[vars]
+GITHUB_CLIENT_ID = ""
+ALLOWED_ORIGINS = "https://datapages.github.io"
