@@ -1,6 +1,9 @@
-// Exchanges a GitHub OAuth code for a token. GitHub's token endpoint needs the
-// client secret and doesn't allow cross-origin requests, so the wizard can't
-// call it directly. Stores nothing.
+// Two jobs, for requests the wizard can't make from the browser. Stores nothing.
+//  - POST /token exchanges a GitHub OAuth code for a token. GitHub's token
+//    endpoint needs the client secret and doesn't allow cross-origin requests.
+//  - PATCH /redivis/tables/:ref/variables relays a variable metadata update to
+//    Redivis with the user's own token. Redivis's API doesn't allow PATCH from
+//    browsers (no Access-Control-Allow-Methods), and this is the only call relayed.
 
 export interface Env {
   GITHUB_CLIENT_ID: string;
@@ -8,6 +11,10 @@ export interface Env {
   /** comma-separated origins the wizard is served from */
   ALLOWED_ORIGINS: string;
 }
+
+const REDIVIS_API = 'https://redivis.com/api/v1';
+const RELAYED_PATH = /^\/redivis(\/tables\/[^/]+\/variables)$/;
+const MAX_RELAY_BYTES = 2 * 1024 * 1024;
 
 interface TokenRequest {
   code?: unknown;
@@ -23,14 +30,16 @@ export default {
 
     const cors = {
       'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'POST, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
       Vary: 'Origin',
     };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     const url = new URL(request.url);
+    const relayed = url.pathname.match(RELAYED_PATH);
+    if (request.method === 'PATCH' && relayed) return relayToRedivis(request, relayed[1], cors);
     if (request.method !== 'POST' || url.pathname !== '/token') return json({ error: 'not_found' }, 404, cors);
 
     let body: TokenRequest;
@@ -67,6 +76,23 @@ export default {
     return json({ access_token: token.access_token, scope: token.scope, token_type: token.token_type }, 200, cors);
   },
 };
+
+async function relayToRedivis(request: Request, path: string, cors: Record<string, string>): Promise<Response> {
+  const auth = request.headers.get('Authorization');
+  if (!auth?.startsWith('Bearer ')) return json({ error: 'invalid_request', error_description: 'Missing Redivis token' }, 401, cors);
+  const body = await request.text();
+  if (body.length > MAX_RELAY_BYTES) return json({ error: 'invalid_request', error_description: 'Request too large' }, 413, cors);
+
+  const res = await fetch(`${REDIVIS_API}${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: auth, 'Content-Type': 'application/json', 'X-Redivis-Client': 'datapage-builder' },
+    body,
+  });
+  return new Response(res.body, {
+    status: res.status,
+    headers: { 'Content-Type': res.headers.get('Content-Type') ?? 'application/json', 'Cache-Control': 'no-store', ...cors },
+  });
+}
 
 function json(data: unknown, status: number, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), {

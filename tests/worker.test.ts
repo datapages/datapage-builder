@@ -54,6 +54,42 @@ describe('token exchange worker', () => {
     expect(res.status).toBe(400);
   });
 
+  it('relays variable metadata updates to Redivis with the caller\'s token', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ kind: 'variableList' }, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const update = { variables: [{ name: 'species', label: 'Species', description: null }] };
+    const res = await worker.fetch(
+      new Request('https://auth.example/redivis/tables/me.birds%3Acurrent.counts/variables', {
+        method: 'PATCH',
+        headers: { Origin: origin, Authorization: 'Bearer rv_token', 'Content-Type': 'application/json' },
+        body: JSON.stringify(update),
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://redivis.com/api/v1/tables/me.birds%3Acurrent.counts/variables');
+    expect(init.method).toBe('PATCH');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer rv_token');
+    expect(JSON.parse(init.body as string)).toEqual(update);
+  });
+
+  it('relays nothing else', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const attempts = [
+      new Request('https://auth.example/redivis/datasets/me.birds', { method: 'PATCH', headers: { Origin: origin, Authorization: 'Bearer t' } }),
+      new Request('https://auth.example/redivis/tables/me.birds.counts/variables', { method: 'POST', headers: { Origin: origin, Authorization: 'Bearer t' } }),
+      new Request('https://auth.example/redivis/tables/me.birds.counts/variables/x', { method: 'PATCH', headers: { Origin: origin, Authorization: 'Bearer t' } }),
+      new Request('https://auth.example/redivis/tables/me.birds.counts/variables', { method: 'PATCH', headers: { Origin: 'https://evil.example', Authorization: 'Bearer t' } }),
+      new Request('https://auth.example/redivis/tables/me.birds.counts/variables', { method: 'PATCH', headers: { Origin: origin } }),
+    ];
+    const statuses = await Promise.all(attempts.map(async (r) => (await worker.fetch(r, env)).status));
+    expect(statuses).toEqual([404, 404, 404, 403, 401]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('rejects missing fields', async () => {
     const res = await worker.fetch(post({ code: 'abc' }), env);
     expect(res.status).toBe(400);
