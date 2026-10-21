@@ -33,7 +33,7 @@ Note the Worker's URL (e.g. `https://datapage-builder-auth.<account>.workers.dev
 
 ### 3. Configure this repo
 
-- Settings > Secrets and variables > Actions > **Variables**: add `GITHUB_CLIENT_ID` (production client ID) and `TOKEN_EXCHANGE_URL` (the Worker URL plus `/token`).
+- Settings > Secrets and variables > Actions > **Variables**: add `OAUTH_CLIENT_ID` (production client ID; GitHub reserves names starting with `GITHUB_`) and `TOKEN_EXCHANGE_URL` (the Worker URL plus `/token`).
 - Settings > Pages: set the source to "GitHub Actions".
 
 Pushing to `main` then tests, builds, and deploys the site.
