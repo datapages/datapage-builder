@@ -1,4 +1,4 @@
-import type { Citation, Link } from './customize';
+import type { Citation, Link, RedivisSource } from './customize';
 import { isPlaceholder, type DatapageSettings } from './datapage';
 import type { PlotConfig, VariableInfo } from './variables';
 
@@ -25,11 +25,17 @@ export interface WizardState {
     columns: { name: string; numDistinct: number }[];
     owner: string;
     isOrganization: boolean;
+    /** whether the table is in a dataset or is a workflow's output */
+    kind: 'dataset' | 'workflow';
+    /** the dataset's or workflow's reference name */
     dataset: string;
     table: string;
     /** `owner.dataset` once this wizard has created it, so a retry can reuse it */
     createdDataset: string | null;
+    /** the dataset's or workflow's page on Redivis */
     datasetUrl: string | null;
+    /** the table's page on Redivis */
+    tableUrl: string | null;
     /** the table is released and public, ready for the datapage */
     released: boolean;
     variables: VariableInfo[];
@@ -85,10 +91,12 @@ export function initialState(): WizardState {
       columns: [],
       owner: '',
       isOrganization: false,
+      kind: 'dataset',
       dataset: '',
       table: '',
       createdDataset: null,
       datasetUrl: null,
+      tableUrl: null,
       released: false,
       variables: [],
       variablesReviewed: false,
@@ -147,6 +155,17 @@ export function resetWizard(): void {
   Object.assign(wizard, initialState());
 }
 
+/** The chosen table, as the datapage's `redivis` block names it. */
+export function redivisSource(): RedivisSource {
+  const { owner: user, kind, dataset, table } = wizard.data;
+  return kind === 'workflow' ? { user, workflow: dataset, table } : { user, dataset, table };
+}
+
+/** The version for table references: dataset tables use the released one, workflow tables have none. */
+export function tableVersion(): 'current' | null {
+  return wizard.data.kind === 'workflow' ? null : 'current';
+}
+
 /**
  * Starts editing an existing datapage: the later steps begin from its
  * settings, unless it still has the template's example content.
@@ -158,7 +177,10 @@ export function startFromDatapage(settings: DatapageSettings): void {
   wizard.repo.current = structuredClone(settings);
   if (isPlaceholder(settings)) return;
   const s = structuredClone(settings);
-  if (s.redivis) Object.assign(wizard.data, { source: 'existing', owner: s.redivis.user, dataset: s.redivis.dataset, table: s.redivis.table });
+  if (s.redivis) {
+    const { user, dataset, workflow, table } = s.redivis;
+    Object.assign(wizard.data, { source: 'existing', owner: user, kind: dataset ? 'dataset' : 'workflow', dataset: dataset ?? workflow, table });
+  }
   Object.assign(wizard.customize, {
     title: s.title,
     subtitle: s.subtitle,

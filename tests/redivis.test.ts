@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { referenceName } from '../src/lib/redivis';
+import { referenceName, tableRef } from '../src/lib/redivis';
 
 describe('referenceName', () => {
   it('gets dataset reference names from qualified references', () => {
@@ -10,5 +10,17 @@ describe('referenceName', () => {
   it('gets table reference names from table URIs', () => {
     expect(referenceName('/tables/datapages.palmerpenguins:9g3v:v1_0.penguins:79km')).toBe('penguins');
     expect(referenceName('/tables/mikabr.chunk_test:abcd:next.chunk_test:k992')).toBe('chunk_test');
+  });
+
+  it('gets workflow and workflow table reference names', () => {
+    expect(referenceName('imathews.example_workflow_climate_analysis:x7kh')).toBe('example_workflow_climate_analysis');
+    expect(referenceName('/tables/imathews.example_workflow_climate_analysis:x7kh.join_lat_lon_output:qvzg')).toBe('join_lat_lon_output');
+  });
+});
+
+describe('tableRef', () => {
+  it('pins dataset tables to a version and leaves workflow tables unversioned', () => {
+    expect(tableRef('a', 'ds', 't', 'current')).toBe('a.ds:current.t');
+    expect(tableRef('a', 'wf', 't', null)).toBe('a.wf.t');
   });
 });

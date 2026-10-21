@@ -24,11 +24,17 @@ export interface Citation {
   url?: string;
 }
 
+/**
+ * The table a datapage reads, as written in _quarto.yml's `redivis` block:
+ * a table in a dataset, or an output table of a workflow.
+ */
+export type RedivisSource = { user: string; table: string } & ({ dataset: string; workflow?: undefined } | { workflow: string; dataset?: undefined });
+
 export interface Customization {
   title: string;
   subtitle: string;
   description: string;
-  redivis: { user: string; dataset: string; table: string };
+  redivis: RedivisSource;
   plot: PlotConfig;
   repoUrl: string;
   siteUrl: string;
@@ -109,8 +115,9 @@ export function customizeFiles(
 export function customizeQuarto(text: string, c: Pick<Customization, 'title' | 'redivis' | 'images'>): string {
   const doc = parseDocument(text);
   doc.setIn(['project', 'title'], c.title);
-  // replace the whole block so a template `workflow:` key doesn't linger
-  doc.set('redivis', doc.createNode({ user: c.redivis.user, dataset: c.redivis.dataset, table: c.redivis.table }));
+  // replace the whole block so a `dataset:` or `workflow:` key from before doesn't linger
+  const { user, dataset, workflow, table } = c.redivis;
+  doc.set('redivis', doc.createNode(dataset ? { user, dataset, table } : { user, workflow, table }));
   // the template's logo is the palmerpenguins hex sticker; the user's icon
   // replaces it and doubles as the favicon
   if (c.images.icon) {
@@ -200,13 +207,15 @@ export function customizeTheme(text: string, primaryColor: string): string {
 }
 
 export function readme(c: Pick<Customization, 'title' | 'subtitle' | 'redivis' | 'siteUrl' | 'datasetUrl'>): string {
-  const ref = `${c.redivis.user}.${c.redivis.dataset}`;
-  const dataset = c.datasetUrl ? `[${ref}](${c.datasetUrl})` : `\`${ref}\``;
+  const { user, dataset, workflow, table } = c.redivis;
+  const kind = dataset ? 'dataset' : 'workflow';
+  const ref = `${user}.${dataset ?? workflow}`;
+  const link = c.datasetUrl ? `[${ref}](${c.datasetUrl})` : `\`${ref}\``;
   return `# ${c.title}
 ${c.subtitle.trim() ? `\n${c.subtitle.trim()}\n` : ''}
 **Site:** ${c.siteUrl}
 
-A [datapage](https://github.com/datapages/datapage) for the Redivis dataset ${dataset} (table \`${c.redivis.table}\`).
+A [datapage](https://github.com/datapages/datapage) for the Redivis ${kind} ${link} (table \`${table}\`).
 
 ## Updating the site
 
@@ -217,7 +226,7 @@ Every push to \`main\` rebuilds the site with GitHub Actions and publishes it to
 - \`index.qmd\` and \`about.qmd\`: the homepage and About page (put any images in \`images/\`)
 - \`theme.scss\`: colors and fonts
 
-The data lives on Redivis. After releasing a new version of the dataset there, rebuild the site by running the "Render and Publish" workflow from the Actions tab.
+The data lives on Redivis. After ${dataset ? 'releasing a new version of the dataset' : 'rerunning the workflow'} there, rebuild the site by running the "Render and Publish" workflow from the Actions tab.
 
 ## Local development
 

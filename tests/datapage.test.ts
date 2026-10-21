@@ -79,6 +79,13 @@ describe('readDatapage', () => {
     expect(isPlaceholder(s)).toBe(false);
   });
 
+  it('reads a workflow table, preferring a dataset like the template does', () => {
+    const quarto = (block: string) => ({ ...template, '_quarto.yml': template['_quarto.yml'].replace(/redivis:[\s\S]*$/, block) });
+    expect(readDatapage(quarto('redivis:\n  user: a\n  workflow: w\n  table: t\n'), 'x').redivis).toEqual({ user: 'a', workflow: 'w', table: 't' });
+    expect(readDatapage(quarto('redivis:\n  user: a\n  workflow: w\n  dataset: d\n  table: t\n'), 'x').redivis).toEqual({ user: 'a', dataset: 'd', table: 't' });
+    expect(readDatapage(quarto('redivis:\n  user: a\n  table: t\n'), 'x').redivis).toBeNull();
+  });
+
   it('recognizes the template example', () => {
     const s = readDatapage(template, 'https://github.com/someone/new');
     expect(isPlaceholder(s)).toBe(true);
@@ -103,6 +110,13 @@ describe('isBuilderReadme', () => {
     readme: templateReadme,
     template: { readme: templateReadme, about: template['about.qmd'] },
   })['README.md']!;
+
+  it('recognizes an unedited README for a workflow', () => {
+    const wf = { ...customization, redivis: { user: 'someone', workflow: 'bird_analysis', table: 'output' } };
+    const files = customizeFiles(template, wf);
+    const text = buildCommit(template, wf, { readme: null, template: { readme: templateReadme, about: template['about.qmd'] } })['README.md']!;
+    expect(isBuilderReadme(text, readDatapage(files, wf.repoUrl))).toBe(true);
+  });
 
   it('recognizes an unedited README', () => {
     expect(isBuilderReadme(readme, settings)).toBe(true);

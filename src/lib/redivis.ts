@@ -32,6 +32,8 @@ export interface Dataset {
 
 export interface Table {
   uri: string;
+  /** the table's page on Redivis; for datasets, pinned to a version with `?v=` */
+  url?: string;
   name: string;
   numRows: number | null;
   variableCount: number | null;
@@ -53,6 +55,15 @@ export interface Variable {
   index: number;
 }
 
+export interface Workflow {
+  uri: string;
+  url: string;
+  name: string;
+  qualifiedReference: string;
+  /** "view" when anyone can see it */
+  publicAccessLevel: string;
+}
+
 export interface DatasetSummary {
   /** display name, which may have spaces */
   name: string;
@@ -65,9 +76,25 @@ export interface DatasetSummary {
  * The reference name of a dataset or table (e.g. `many_babies_4`) from its
  * qualified reference or URI. Display names can have spaces; references can't.
  */
+/** A table's page on Redivis, without the version pin so it shows the current version. */
+export function tablePageUrl(table: Pick<Table, 'url'>): string | null {
+  if (!table.url) return null;
+  const url = new URL(table.url);
+  url.searchParams.delete('v');
+  return url.href;
+}
+
 export function referenceName(qualifiedOrUri: string): string {
   const last = qualifiedOrUri.split('/').pop()!.split('.').pop()!;
   return decodeURIComponent(last.split(':')[0]);
+}
+
+/**
+ * A table reference. Dataset tables are pinned to a version; workflow tables
+ * have none (pass a null version).
+ */
+export function tableRef(owner: string, container: string, table: string, version: string | null): string {
+  return version ? `${owner}.${container}:${version}.${table}` : `${owner}.${container}.${table}`;
 }
 
 /** Fields left out are unchanged; an empty string clears a value (null is rejected). */
@@ -205,15 +232,46 @@ export class Redivis {
 
   /** Datasets owned by a user or organization (Redivis uses separate paths for each). */
   async listDatasets(owner: string): Promise<{ datasets: DatasetSummary[]; isOrganization: boolean }> {
+    const { results, isOrganization } = await this.listOwned<DatasetSummary>(owner, 'datasets');
+    return { datasets: results, isOrganization };
+  }
+
+  /** Workflows owned by a user or organization, including non-public ones with the workflow.read scope. */
+  async listWorkflows(owner: string): Promise<Workflow[]> {
+    return (await this.listOwned<Workflow>(owner, 'workflows')).results;
+  }
+
+  private async listOwned<T>(owner: string, kind: 'datasets' | 'workflows'): Promise<{ results: T[]; isOrganization: boolean }> {
     for (const [parent, isOrganization] of [['users', false], ['organizations', true]] as const) {
       try {
-        const res = await this.request<{ results: DatasetSummary[] }>('GET', `/${parent}/${enc(owner)}/datasets?maxResults=1000`);
-        return { datasets: res.results ?? [], isOrganization };
+        const res = await this.request<{ results: T[] }>('GET', `/${parent}/${enc(owner)}/${kind}?maxResults=1000`);
+        return { results: res.results ?? [], isOrganization };
       } catch (e) {
         if (!(e instanceof RedivisError && e.status === 404)) throw e;
       }
     }
     throw new RedivisError(`No Redivis user or organization named "${owner}".`, 404);
+  }
+
+  getWorkflow(owner: string, name: string): Promise<Workflow | null> {
+    return this.getOrNull(`/workflows/${enc(`${owner}.${name}`)}`);
+  }
+
+  /** The workflow's own tables (its transform and notebook outputs), not its data sources. */
+  async listWorkflowTables(owner: string, workflow: string): Promise<Table[]> {
+    const res = await this.request<{ results: Table[] }>('GET', `/workflows/${enc(`${owner}.${workflow}`)}/tables?maxResults=1000`);
+    return res.results ?? [];
+  }
+
+  /** Whether anyone can read the table's rows without signing in, as the datapage's build does. */
+  async isPubliclyReadable(ref: string): Promise<boolean> {
+    try {
+      await new Redivis(null).request('GET', `/tables/${enc(ref)}/rows?maxResults=1`);
+      return true;
+    } catch (e) {
+      if (e instanceof RedivisError && [401, 403, 404].includes(e.status)) return false;
+      throw e;
+    }
   }
 
   async listTables(owner: string, dataset: string, version = 'current'): Promise<Table[]> {
@@ -222,8 +280,8 @@ export class Redivis {
   }
 
   /** Number of distinct non-null values, from Redivis's (cached) variable statistics. */
-  async numDistinct(owner: string, dataset: string, table: string, variable: string, version = 'current'): Promise<number | null> {
-    const ref = `${owner}.${dataset}:${version}.${table}`;
+  async numDistinct(owner: string, dataset: string, table: string, variable: string, version: string | null = 'current'): Promise<number | null> {
+    const ref = tableRef(owner, dataset, table, version);
     for (let attempt = 0; attempt < 5; attempt++) {
       const stats = await this.request<{ status?: string; numDistinct?: number }>(
         'GET',
@@ -237,8 +295,14 @@ export class Redivis {
   }
 
   /** Sets labels and descriptions, relayed through the Worker since browsers can't PATCH Redivis. */
-  async updateVariables(owner: string, dataset: string, table: string, variables: VariableUpdate[], version = 'current'): Promise<void> {
-    const ref = `${owner}.${dataset}:${version}.${table}`;
+  async updateVariables(
+    owner: string,
+    dataset: string,
+    table: string,
+    variables: VariableUpdate[],
+    version: string | null = 'current',
+  ): Promise<void> {
+    const ref = tableRef(owner, dataset, table, version);
     const res = await fetch(`${workerUrl()}/redivis/tables/${enc(ref)}/variables`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
@@ -250,8 +314,8 @@ export class Redivis {
     }
   }
 
-  async listVariables(owner: string, dataset: string, table: string, version = 'next'): Promise<Variable[]> {
-    const ref = `${owner}.${dataset}:${version}.${table}`;
+  async listVariables(owner: string, dataset: string, table: string, version: string | null = 'next'): Promise<Variable[]> {
+    const ref = tableRef(owner, dataset, table, version);
     const res = await this.request<{ results: Variable[] }>('GET', `/tables/${enc(ref)}/variables?maxResults=1000`);
     return res.results ?? [];
   }

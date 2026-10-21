@@ -2,11 +2,21 @@
 // builder can edit a datapage it didn't make (or made in an earlier session).
 import { parse } from 'yaml';
 import { config } from './config';
-import { CUSTOMIZED_FILES, LEADING_IMAGE, bodyOf, readFrontMatter, readme, type Citation, type CustomizedFile, type Link } from './customize';
+import {
+  CUSTOMIZED_FILES,
+  LEADING_IMAGE,
+  bodyOf,
+  readFrontMatter,
+  readme,
+  type Citation,
+  type CustomizedFile,
+  type Link,
+  type RedivisSource,
+} from './customize';
 import type { PlotConfig } from './variables';
 
 export interface DatapageSettings {
-  redivis: { user: string; dataset: string; table: string } | null;
+  redivis: RedivisSource | null;
   plot: PlotConfig | null;
   title: string;
   subtitle: string;
@@ -61,10 +71,11 @@ export function readDatapage(files: Record<CustomizedFile, string>, repoUrl: str
   const index = safeFrontMatter(files['index.qmd']);
   const about = safeFrontMatter(files['about.qmd']);
 
-  const r = quarto.redivis;
-  const redivis = r && [r.user, r.dataset, r.table].every((v) => typeof v === 'string' && v)
-    ? { user: r.user, dataset: r.dataset, table: r.table }
-    : null;
+  // like the template, a dataset wins over a workflow when both are set
+  const r = quarto.redivis ?? {};
+  const [user, table, dataset, workflow] = [r.user, r.table, r.dataset, r.workflow].map(text);
+  const redivis: RedivisSource | null =
+    user && table && dataset ? { user, dataset, table } : user && table && workflow ? { user, workflow, table } : null;
 
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : []);
   const d = plotYml.defaults ?? {};
@@ -110,7 +121,7 @@ export function isBuilderReadme(text: string, s: DatapageSettings): boolean {
   if (!s.redivis) return false;
   const siteUrl = text.match(/^\*\*Site:\*\* (\S+)$/m)?.[1];
   if (!siteUrl) return false;
-  const datasetUrl = text.match(/Redivis dataset \[[^\]]*\]\(([^)\s]+)\)/)?.[1] ?? null;
+  const datasetUrl = text.match(/Redivis (?:dataset|workflow) \[[^\]]*\]\(([^)\s]+)\)/)?.[1] ?? null;
   return text.trim() === readme({ title: s.title, subtitle: s.subtitle, redivis: s.redivis, siteUrl, datasetUrl }).trim();
 }
 

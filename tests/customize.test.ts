@@ -57,6 +57,11 @@ describe('customizeFiles', () => {
     expect(quarto.redivis.workflow).toBeUndefined();
   });
 
+  it('writes a workflow table to the redivis block', () => {
+    const out = customizeFiles(template, { ...customization, redivis: { user: 'someone', workflow: 'bird_analysis', table: 'output' } });
+    expect(parse(out['_quarto.yml']).redivis).toEqual({ user: 'someone', workflow: 'bird_analysis', table: 'output' });
+  });
+
   it('writes the plot config', () => {
     expect(parse(out['_config.yml'])).toEqual({
       numerical_vars: ['count', 'temperature'],
@@ -132,6 +137,12 @@ describe('buildCommit', () => {
     expect(readme).toContain('**Site:** https://someone.github.io/bird-counts/');
     expect(readme).toContain('[someone.bird_counts](https://redivis.com/datasets/abcd-1234) (table `counts`)');
     expect(readme).not.toMatch(/penguin|Use this template|REDIVIS_API_TOKEN/i);
+  });
+
+  it('describes a workflow in the README', () => {
+    const readme = buildCommit(template, { ...customization, redivis: { user: 'someone', workflow: 'bird_analysis', table: 'output' } }, baseline)['README.md']!;
+    expect(readme).toContain('for the Redivis workflow [someone.bird_analysis](https://redivis.com/datasets/abcd-1234) (table `output`)');
+    expect(readme).toContain('After rerunning the workflow there');
   });
 
   it('leaves no penguin-specific content in the edited files', () => {

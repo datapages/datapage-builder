@@ -88,13 +88,15 @@
       </p>
       <ul>
         <li>
-          <strong>Update the data:</strong> release a new version of the dataset on Redivis, then rebuild the site by
+          <strong>Update the data:</strong>
+          {wizard.data.kind === 'workflow' ? 'rerun the workflow' : 'release a new version of the dataset'} on Redivis,
+          then rebuild the site by
           running the "Render and Publish" workflow from the repo's
           <a href={`${repoUrl}/actions`} target="_blank" rel="noopener">Actions tab</a>.
         </li>
         <li>
-          <strong>Document the dataset on Redivis</strong>{#if wizard.data.datasetUrl}{' '}(<a href={wizard.data.datasetUrl} target="_blank" rel="noopener">open it</a>){/if}:
-          add a description, methodology, and citation. Variable labels and descriptions can be edited there too.
+          <strong>Document the {wizard.data.kind} on Redivis</strong>{#if wizard.data.datasetUrl}{' '}(<a href={wizard.data.datasetUrl} target="_blank" rel="noopener">open it</a>){/if}:
+          add a description{wizard.data.kind === 'workflow' ? ' and methodology' : ', methodology, and citation'}. Variable labels and descriptions can be edited there too.
         </li>
         <li>
           <strong>Change the plots:</strong> edit <code>_config.yml</code> to choose which variables can be plotted

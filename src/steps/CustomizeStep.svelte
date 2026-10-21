@@ -5,7 +5,7 @@
   import { config } from '../lib/config';
   import { fetchCitation } from '../lib/doi';
   import type { FileChange } from '../lib/github';
-  import { session, wizard } from '../lib/state.svelte';
+  import { redivisSource, session, wizard } from '../lib/state.svelte';
 
   let { onnext }: { onnext: () => void } = $props();
 
@@ -122,7 +122,7 @@
         title: c.title.trim(),
         subtitle: c.subtitle,
         description: c.description,
-        redivis: { user: wizard.data.owner, dataset: wizard.data.dataset, table: wizard.data.table },
+        redivis: redivisSource(),
         plot: wizard.plots.config!,
         repoUrl: `https://github.com/${ref.owner}/${ref.repo}`,
         siteUrl,

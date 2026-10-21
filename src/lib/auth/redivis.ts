@@ -10,13 +10,15 @@ interface StoredToken {
   accessToken: string;
   /** epoch seconds */
   expiresAt: number;
+  /** the scopes requested, so a token from before a scope was added isn't reused */
+  scope?: string;
 }
 
 export function getRedivisToken(): string | null {
   try {
     const stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? 'null') as StoredToken | null;
     // treat tokens expiring in the next 5 minutes as expired
-    if (stored && stored.expiresAt * 1000 > Date.now() + 5 * 60 * 1000) return stored.accessToken;
+    if (stored && stored.scope === config.redivisScope && stored.expiresAt * 1000 > Date.now() + 5 * 60 * 1000) return stored.accessToken;
   } catch {
     // ignore
   }
@@ -63,7 +65,7 @@ export async function signInWithRedivis(): Promise<string> {
   const token = await res.json();
   if (!res.ok) throw new Error(`Redivis sign-in failed: ${token.error_description ?? token.error ?? res.status}`);
 
-  const stored: StoredToken = { accessToken: token.access_token, expiresAt: token.expires_at };
+  const stored: StoredToken = { accessToken: token.access_token, expiresAt: token.expires_at, scope: config.redivisScope };
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch {

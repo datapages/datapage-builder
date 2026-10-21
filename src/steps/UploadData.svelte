@@ -1,6 +1,7 @@
 <script lang="ts">
   import { errorMessage, redivis } from '../lib/clients';
   import { analyzeCsv, formatBytes, type CsvAnalysis } from '../lib/csv';
+  import { tablePageUrl } from '../lib/redivis';
   import { session, wizard } from '../lib/state.svelte';
   import { joinVariables } from '../lib/variables';
 
@@ -55,6 +56,7 @@
     try {
       analysis = await analyzeCsv(file);
       wizard.data.fileName = file.name;
+      wizard.data.kind = 'dataset';
       wizard.data.rows = analysis.rows;
       wizard.data.columns = analysis.columns.map(({ name, numDistinct }) => ({ name, numDistinct }));
       if (!wizard.data.createdDataset) {
@@ -135,6 +137,8 @@
       }
 
       start('variables');
+      const released = await api.getTable(owner, dataset, table, 'current');
+      wizard.data.tableUrl = released ? tablePageUrl(released) : null;
       const vars = await api.listVariables(owner, dataset, table, 'current');
       wizard.data.variables = joinVariables(vars, wizard.data.columns);
       wizard.data.source = 'upload';

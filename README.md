@@ -1,6 +1,6 @@
 # datapage-builder
 
-A web app that walks people through making a [datapage](https://github.com/datapages/datapage), or editing one: it creates a GitHub repo from the datapage template (or uses an existing datapage repo), uploads their CSV to Redivis as a public dataset (or uses an existing Redivis table), lets them describe the variables, customizes the repo, and publishes it on GitHub Pages. See [DESIGN.md](DESIGN.md) for how it works.
+A web app that walks people through making a [datapage](https://github.com/datapages/datapage), or editing one: it creates a GitHub repo from the datapage template (or uses an existing datapage repo), uploads their CSV to Redivis as a public dataset (or uses an existing Redivis table, from a dataset or a workflow's output), lets them describe the variables, customizes the repo, and publishes it on GitHub Pages. See [DESIGN.md](DESIGN.md) for how it works.
 
 It's a static site (Vite + Svelte) served from `datapages.github.io/datapage-builder`. The only server-side piece is a small Cloudflare Worker in [`worker/`](worker/) that does the two things a browser can't: it exchanges GitHub OAuth codes for tokens (GitHub requires a client secret and doesn't allow it from the browser), and it relays variable metadata updates to Redivis (Redivis's API doesn't allow PATCH from browsers). It stores nothing. Redivis sign-in happens entirely in the browser.
 

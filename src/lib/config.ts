@@ -5,7 +5,8 @@ export const config = {
   tokenExchangeUrl: import.meta.env.VITE_TOKEN_EXCHANGE_URL as string,
   /** `repo` to create repos and commit; `read:org` to list the user's orgs. */
   githubScope: 'repo read:org',
-  redivisScope: 'data.edit',
+  /** `data.edit` to create datasets and edit metadata; `workflow.read` to list non-public workflows. */
+  redivisScope: 'data.edit workflow.read',
   template: { owner: 'datapages', repo: 'datapage' },
 };
 

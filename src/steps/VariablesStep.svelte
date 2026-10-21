@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { errorMessage, redivis } from '../lib/clients';
-  import { wizard } from '../lib/state.svelte';
+  import { tableVersion, wizard } from '../lib/state.svelte';
   import { variableUpdates } from '../lib/variables';
 
   let { onnext }: { onnext: () => void } = $props();
@@ -17,13 +17,17 @@
   let saving = $state(false);
   let error = $state('');
 
+  // Redivis only lets dataset tables' metadata be edited; a workflow's output
+  // tables get theirs from the workflow
+  const readOnly = wizard.data.kind === 'workflow';
+
   const updates = $derived(variableUpdates(wizard.data.variables, drafts));
 
   // fill the fields with what's on Redivis now, which may have changed since
   // the data was chosen (e.g. edited on Redivis, or saved here earlier)
   onMount(async () => {
     try {
-      const current = await redivis().listVariables(wizard.data.owner, wizard.data.dataset, wizard.data.table, 'current');
+      const current = await redivis().listVariables(wizard.data.owner, wizard.data.dataset, wizard.data.table, tableVersion());
       for (const v of wizard.data.variables) {
         const fresh = current.find((c) => c.name === v.name);
         if (fresh) Object.assign(v, { label: fresh.label, description: fresh.description });
@@ -65,11 +69,22 @@
 <section class="stack">
   <div>
     <h2>Describe your variables</h2>
-    <p class="muted">
-      Labels and descriptions are saved to your table on Redivis, where they document the data for anyone who finds
-      it. Your datapage shows labels in its plot menus. Everything here is optional, and you can edit it on Redivis
-      later.
-    </p>
+    {#if readOnly}
+      <p class="muted">
+        Your datapage shows these labels in its plot menus. Workflow output tables get their labels and descriptions
+        from the workflow, so they can't be changed here. Edit them in the workflow on Redivis{#if wizard.data.datasetUrl}{' '}(<a
+            href={wizard.data.datasetUrl}
+            target="_blank"
+            rel="noopener">open it</a
+          >){/if}, then come back to this step.
+      </p>
+    {:else}
+      <p class="muted">
+        Labels and descriptions are saved to your table on Redivis, where they document the data for anyone who finds
+        it. Your datapage shows labels in its plot menus. Everything here is optional, and you can edit it on Redivis
+        later.
+      </p>
+    {/if}
   </div>
 
   {#if loading}<p class="muted">Loading the current labels and descriptions…</p>{/if}
@@ -83,8 +98,8 @@
           <code>{d.name}</code>
           <span class="muted">{d.type}</span>
         </div>
-        <input type="text" bind:value={d.label} maxlength={MAX_LABEL} placeholder="Short, readable name" aria-label={`Label for ${d.name}`} disabled={loading} />
-        <textarea bind:value={d.description} maxlength={MAX_DESCRIPTION} rows="1" placeholder="What it measures, units, how it was collected…" aria-label={`Description of ${d.name}`} disabled={loading}></textarea>
+        <input type="text" bind:value={d.label} maxlength={MAX_LABEL} placeholder={readOnly ? "" : "Short, readable name"} aria-label={`Label for ${d.name}`} disabled={loading} readonly={readOnly} />
+        <textarea bind:value={d.description} maxlength={MAX_DESCRIPTION} rows="1" placeholder={readOnly ? "" : "What it measures, units, how it was collected…"} aria-label={`Description of ${d.name}`} disabled={loading} readonly={readOnly}></textarea>
       </div>
     {/each}
   </div>

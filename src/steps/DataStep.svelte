@@ -22,28 +22,28 @@
     <h2>Choose your data</h2>
     <p class="muted">
       Your datapage reads a public table on Redivis, where visitors can also browse, query, and download it. Upload a
-      CSV to make a new dataset, or use a table you already have on Redivis.
+      CSV to make a new dataset, or use a table you already have on Redivis, in a dataset or made by a workflow.
     </p>
   </div>
 
   {#if current && !wizard.data.released}
     <div class="notice info">
-      Your datapage uses the table <strong>{current.table}</strong> in <strong>{current.user}.{current.dataset}</strong>
-      now. It's chosen below: use it to keep it, or pick different data.
+      Your datapage uses the table <strong>{current.table}</strong> in the {current.dataset ? 'dataset' : 'workflow'}
+      <strong>{current.user}.{current.dataset ?? current.workflow}</strong> now. It's chosen below: use it to keep it, or pick different data.
     </div>
   {/if}
 
   {#if wizard.data.released}
     <div class="card stack">
       <p>
-        Your datapage will use the table <strong>{wizard.data.table}</strong> in
+        Your datapage will use the table <strong>{wizard.data.table}</strong> in the {wizard.data.kind}
         <strong>{wizard.data.owner}.{wizard.data.dataset}</strong>{wizard.data.rows != null
           ? `, with ${wizard.data.rows.toLocaleString()} rows`
           : ''}.
       </p>
       <div class="row">
-        {#if wizard.data.datasetUrl}
-          <a href={wizard.data.datasetUrl} target="_blank" rel="noopener">View it on Redivis</a>
+        {#if wizard.data.tableUrl ?? wizard.data.datasetUrl}
+          <a href={wizard.data.tableUrl ?? wizard.data.datasetUrl} target="_blank" rel="noopener">View it on Redivis</a>
         {/if}
         {#if !wizard.customize.commitSha}
           <button class="link" onclick={chooseAgain}>Choose different data</button>
@@ -59,7 +59,7 @@
       </label>
       <label class="checkbox">
         <input type="radio" name="source" value="existing" bind:group={wizard.data.source} />
-        <span><strong>Use an existing Redivis table</strong><span class="hint">From a released, public dataset</span></span>
+        <span><strong>Use an existing Redivis table</strong><span class="hint">From a public dataset or workflow</span></span>
       </label>
     </div>
 
