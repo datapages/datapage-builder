@@ -8,6 +8,7 @@ export interface VariableInfo {
   /** Redivis variable type */
   type: string;
   label?: string | null;
+  description?: string | null;
   numDistinct: number;
 }
 
@@ -46,14 +47,43 @@ export function plotConfigProblems(config: PlotConfig): string[] {
 }
 
 /**
+ * The metadata changes to send to Redivis: only fields that changed, so a blank
+ * field that was already blank isn't sent. A field that's cleared is sent as an
+ * empty string, since the batch endpoint rejects null.
+ */
+export function variableUpdates(
+  current: { name: string; label?: string | null; description?: string | null }[],
+  drafts: { name: string; label: string; description: string }[],
+): { name: string; label?: string; description?: string }[] {
+  const updates = [];
+  for (const draft of drafts) {
+    const v = current.find((c) => c.name === draft.name);
+    if (!v) continue;
+    const update: { name: string; label?: string; description?: string } = { name: draft.name };
+    for (const field of ['label', 'description'] as const) {
+      const value = draft[field].trim();
+      if (value !== (v[field] ?? '')) update[field] = value;
+    }
+    if (Object.keys(update).length > 1) updates.push(update);
+  }
+  return updates;
+}
+
+/**
  * Joins Redivis variables (authoritative names and types) with distinct counts
  * from the local CSV, matching by column position since Redivis may rename columns.
  */
 export function joinVariables(
-  redivisVars: { name: string; type: string; label?: string | null; index?: number }[],
+  redivisVars: { name: string; type: string; label?: string | null; description?: string | null; index?: number }[],
   csvColumns: { numDistinct: number }[],
 ): VariableInfo[] {
   return [...redivisVars]
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-    .map((v, i) => ({ name: v.name, type: v.type, label: v.label, numDistinct: csvColumns[i]?.numDistinct ?? 0 }));
+    .map((v, i) => ({
+      name: v.name,
+      type: v.type,
+      label: v.label,
+      description: v.description,
+      numDistinct: csvColumns[i]?.numDistinct ?? 0,
+    }));
 }

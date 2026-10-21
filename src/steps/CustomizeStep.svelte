@@ -1,47 +1,81 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { errorMessage, github } from '../lib/clients';
-  import { CUSTOMIZED_FILES, buildCommit } from '../lib/customize';
+  import { CUSTOMIZED_FILES, IMAGE_TYPES, buildCommit, imagePath } from '../lib/customize';
   import { fetchCitation } from '../lib/doi';
-  import { wizard } from '../lib/state.svelte';
-  import { plotConfigProblems, suggestPlotConfig } from '../lib/variables';
+  import type { FileChange } from '../lib/github';
+  import { session, wizard } from '../lib/state.svelte';
 
   let { onnext }: { onnext: () => void } = $props();
 
-  // icons from Bootstrap Icons, which Quarto's about pages use
-  const LINK_ICONS = ['globe', 'file-text', 'journal-text', 'book', 'github', 'envelope', 'database'];
+  // Bootstrap Icons names, which Quarto's about pages use
+  const LINK_ICONS = ['globe', 'link-45deg', 'file-text', 'journal-text', 'book', 'database', 'github', 'envelope', 'youtube', 'mastodon'];
+  const MAX_IMAGE_BYTES = 5 * 1024 ** 2;
+  const IMAGES = {
+    highlight: {
+      title: 'Highlight image',
+      hint: 'Shown at the top of the homepage and beside the About page text.',
+    },
+    icon: {
+      title: 'Icon',
+      hint: 'Shown in the navigation bar and as the browser tab icon. A small square image works best.',
+    },
+  } as const;
+  type ImageKind = keyof typeof IMAGES;
 
   const c = wizard.customize;
   if (!c.title) c.title = humanize(wizard.data.dataset);
-  if (!c.plot) c.plot = suggestPlotConfig(wizard.data.variables);
-  const plot = c.plot!;
 
   let lookingUp = $state(false);
   let doiError = $state('');
   let committing = $state(false);
   let error = $state('');
+  let imageErrors = $state<Record<ImageKind, string>>({ highlight: '', icon: '' });
+  let previews = $state<Record<ImageKind, string | null>>({ highlight: null, icon: null });
 
-  const problems = $derived([...(c.title.trim() ? [] : ['Give your datapage a title.']), ...plotConfigProblems(plot)]);
+  const ref = { owner: wizard.repo.owner, repo: wizard.repo.name };
+  const problems = $derived(c.title.trim() ? [] : ['Give your datapage a title.']);
+  const files = $derived({ highlight: session.highlightImage, icon: session.icon });
+
+  // files picked on an earlier visit to this step
+  if (session.highlightImage) previews.highlight = URL.createObjectURL(session.highlightImage);
+  if (session.icon) previews.icon = URL.createObjectURL(session.icon);
+  onDestroy(() => Object.values(previews).forEach((url) => url?.startsWith('blob:') && URL.revokeObjectURL(url)));
 
   function humanize(name: string): string {
     return name.replace(/_+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase()).trim();
   }
 
-  function role(name: string): 'numerical' | 'categorical' | 'none' {
-    if (plot.numerical.includes(name)) return 'numerical';
-    if (plot.categorical.includes(name)) return 'categorical';
-    return 'none';
+  // an image already in the repo, shown when nothing new has been picked
+  function committedUrl(kind: ImageKind): string | null {
+    const path = c.images[kind];
+    return path ? `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/HEAD/${path}` : null;
   }
 
-  function setRole(name: string, value: string) {
-    plot.numerical = plot.numerical.filter((n) => n !== name);
-    plot.categorical = plot.categorical.filter((n) => n !== name);
-    if (value === 'numerical') plot.numerical.push(name);
-    if (value === 'categorical') plot.categorical.push(name);
-    // keep the defaults pointing at variables that can still be used
-    const d = plot.defaults;
-    if (!plot.numerical.includes(d.x)) d.x = plot.numerical.find((n) => n !== d.y) ?? '';
-    if (!plot.numerical.includes(d.y)) d.y = plot.numerical.find((n) => n !== d.x) ?? '';
-    if (!plot.categorical.includes(d.color)) d.color = plot.categorical[0] ?? '';
+  function setFile(kind: ImageKind, file: File | null) {
+    if (kind === 'highlight') session.highlightImage = file;
+    else session.icon = file;
+    if (previews[kind]) URL.revokeObjectURL(previews[kind]!);
+    previews[kind] = file ? URL.createObjectURL(file) : null;
+  }
+
+  function pickImage(kind: ImageKind, event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    imageErrors[kind] = '';
+    if (!file) return;
+    if (!IMAGE_TYPES[file.type]) imageErrors[kind] = 'Use a PNG, JPEG, GIF, WebP, or SVG image.';
+    else if (file.size > MAX_IMAGE_BYTES) imageErrors[kind] = 'That image is over 5 MB. Try a smaller version.';
+    if (imageErrors[kind]) {
+      input.value = '';
+      return;
+    }
+    setFile(kind, file);
+  }
+
+  function removeImage(kind: ImageKind) {
+    setFile(kind, null);
+    c.images[kind] = null;
   }
 
   async function lookUpDoi() {
@@ -56,28 +90,55 @@
     }
   }
 
+  function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(',', 2)[1]);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function commit() {
     committing = true;
     error = '';
     try {
       const gh = github();
-      const ref = { owner: wizard.repo.owner, repo: wizard.repo.name };
-      const files = await gh.readFiles(ref, CUSTOMIZED_FILES);
+      const templateFiles = await gh.readFiles(ref, CUSTOMIZED_FILES);
       const siteUrl = (await gh.pagesUrl(ref)) ?? `https://${ref.owner.toLowerCase()}.github.io/${ref.repo}/`;
-      const changes = buildCommit(files, {
+
+      // new uploads replace what's committed; otherwise keep what's there
+      const paths = {
+        highlight: files.highlight ? imagePath('highlight', files.highlight.type) : c.images.highlight,
+        icon: files.icon ? imagePath('icon', files.icon.type) : c.images.icon,
+      };
+      const changes: Record<string, FileChange> = buildCommit(templateFiles, {
         title: c.title.trim(),
         subtitle: c.subtitle,
         description: c.description,
         redivis: { user: wizard.data.owner, dataset: wizard.data.dataset, table: wizard.data.table },
-        plot,
+        plot: wizard.plots.config!,
         repoUrl: `https://github.com/${ref.owner}/${ref.repo}`,
         siteUrl,
         datasetUrl: wizard.data.datasetUrl,
         links: c.links,
         citation: c.citation,
         primaryColor: c.primaryColor,
+        images: { highlight: paths.highlight, highlightAlt: c.imageAlt, icon: paths.icon },
       });
+      for (const kind of ['highlight', 'icon'] as const) {
+        // remove earlier uploads that aren't used anymore (e.g. a .png replaced by a .jpg)
+        for (const ext of Object.values(IMAGE_TYPES)) {
+          const path = `images/${kind}.${ext}`;
+          if (path !== paths[kind]) changes[path] = null;
+        }
+        const file = files[kind];
+        if (file && paths[kind]) changes[paths[kind]!] = { base64: await toBase64(file) };
+      }
+
       c.commitSha = await gh.commitFiles(ref, changes, `Customize datapage for ${wizard.data.owner}.${wizard.data.dataset}`);
+      c.images = paths;
+      await gh.setDescription(ref, c.subtitle.trim() || c.title.trim());
       wizard.publish.siteUrl = null;
       onnext();
     } catch (e) {
@@ -113,43 +174,34 @@
   </div>
 
   <div class="card stack">
-    <h3>Plot variables</h3>
-    <p class="muted">
-      The homepage scatter plot lets visitors put numerical variables on the axes and color points by a categorical
-      variable. These are guessed from your data: numbers with many distinct values are numerical, and anything with
-      2–10 values is categorical.
-    </p>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Variable</th><th>Type</th><th>Distinct values</th><th>Use as</th></tr></thead>
-        <tbody>
-          {#each wizard.data.variables as v (v.name)}
-            <tr>
-              <td>{v.name}</td>
-              <td>{v.type}</td>
-              <td>{v.numDistinct > 1000 ? '1000+' : v.numDistinct}</td>
-              <td>
-                <select value={role(v.name)} onchange={(e) => setRole(v.name, e.currentTarget.value)} aria-label={`Use ${v.name} as`}>
-                  <option value="numerical">Numerical</option>
-                  <option value="categorical">Categorical</option>
-                  <option value="none">Not in plots</option>
-                </select>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+    <h3>Images</h3>
+    <p class="muted">Both optional. PNG, JPEG, GIF, WebP, or SVG, up to 5 MB.</p>
     <div class="grid-2">
-      <label>Default x axis
-        <select bind:value={plot.defaults.x}>{#each plot.numerical as n (n)}<option value={n}>{n}</option>{/each}</select>
-      </label>
-      <label>Default y axis
-        <select bind:value={plot.defaults.y}>{#each plot.numerical as n (n)}<option value={n}>{n}</option>{/each}</select>
-      </label>
-      <label>Default color
-        <select bind:value={plot.defaults.color}>{#each plot.categorical as n (n)}<option value={n}>{n}</option>{/each}</select>
-      </label>
+      {#each Object.entries(IMAGES) as [kind, info] (kind)}
+        {@const k = kind as ImageKind}
+        {@const src = previews[k] ?? committedUrl(k)}
+        <div class="stack image-field">
+          <label>
+            {info.title}
+            <span class="hint">{info.hint}</span>
+            <input type="file" accept={Object.keys(IMAGE_TYPES).join(',')} onchange={(e) => pickImage(k, e)} />
+          </label>
+          {#if imageErrors[k]}<div class="notice error">{imageErrors[k]}</div>{/if}
+          {#if src}
+            <div class="row">
+              <img class:icon-preview={k === 'icon'} src={src} alt="" />
+              <button class="link" onclick={() => removeImage(k)}>Remove</button>
+            </div>
+          {/if}
+          {#if k === 'highlight' && src}
+            <label>
+              Image description
+              <span class="hint">For people using screen readers</span>
+              <input type="text" bind:value={c.imageAlt} />
+            </label>
+          {/if}
+        </div>
+      {/each}
     </div>
   </div>
 
@@ -175,11 +227,26 @@
       <strong>Links</strong>
       <p class="muted">A link to your GitHub repo is always included. Add others, like a paper or project site.</p>
       {#each c.links as link, i (i)}
-        <div class="row link-row">
-          <select bind:value={link.icon} aria-label="Icon">{#each LINK_ICONS as icon (icon)}<option value={icon}>{icon}</option>{/each}</select>
-          <input type="text" placeholder="Text" bind:value={link.text} aria-label="Link text" />
-          <input type="url" placeholder="https://…" bind:value={link.href} aria-label="Link URL" />
-          <button class="link" onclick={() => c.links.splice(i, 1)}>Remove</button>
+        <div class="link-row stack">
+          <div class="icon-picker" role="radiogroup" aria-label="Icon">
+            {#each LINK_ICONS as icon (icon)}
+              <button
+                type="button"
+                class="icon-choice"
+                class:selected={link.icon === icon}
+                role="radio"
+                aria-checked={link.icon === icon}
+                aria-label={icon}
+                title={icon}
+                onclick={() => (link.icon = icon)}
+              ><i class={`bi bi-${icon}`} aria-hidden="true"></i></button>
+            {/each}
+          </div>
+          <div class="row">
+            <input type="text" placeholder="Text" bind:value={link.text} aria-label="Link text" />
+            <input type="url" placeholder="https://…" bind:value={link.href} aria-label="Link URL" />
+            <button class="link" onclick={() => c.links.splice(i, 1)}>Remove</button>
+          </div>
         </div>
       {/each}
       <button class="secondary" onclick={() => c.links.push({ icon: 'globe', text: '', href: '' })}>Add link</button>
@@ -199,14 +266,51 @@
 
 <style>
   .link-row {
-    margin-bottom: 0.5rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.75rem;
   }
-  .link-row select {
-    width: auto;
+  .link-row > * + * {
+    margin-top: 0.5rem;
   }
   .link-row input {
     flex: 1 1 10rem;
     width: auto;
+    margin-top: 0;
+  }
+  .icon-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .icon-choice {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    font-size: 1.05rem;
+    font-weight: 400;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  .icon-choice.selected {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  .image-field img {
+    max-width: 12rem;
+    max-height: 8rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    object-fit: contain;
+    background: var(--bg);
+  }
+  .image-field img.icon-preview {
+    width: 3rem;
+    height: 3rem;
   }
   input[type='color'] {
     display: block;

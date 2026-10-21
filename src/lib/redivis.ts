@@ -1,6 +1,9 @@
 // Thin client for the Redivis REST API (https://docs.redivis.com/api/rest-api).
 // The API doesn't send Access-Control-Allow-Methods, so browsers only allow
-// GET and POST to it: nothing here can delete or patch.
+// GET and POST to it. The one PATCH the wizard needs (variable metadata) goes
+// through the Worker, which relays it (see worker/src/index.ts).
+
+import { workerUrl } from './config';
 
 const API = 'https://redivis.com/api/v1';
 // GCS resumable chunks must be multiples of 256 KiB
@@ -46,7 +49,32 @@ export interface Variable {
   name: string;
   type: string;
   label: string | null;
+  description: string | null;
   index: number;
+}
+
+export interface DatasetSummary {
+  /** display name, which may have spaces */
+  name: string;
+  /** e.g. `owner.many_babies_4:20k3:v1_0` */
+  qualifiedReference: string;
+  publicAccessLevel: string;
+}
+
+/**
+ * The reference name of a dataset or table (e.g. `many_babies_4`) from its
+ * qualified reference or URI. Display names can have spaces; references can't.
+ */
+export function referenceName(qualifiedOrUri: string): string {
+  const last = qualifiedOrUri.split('/').pop()!.split('.').pop()!;
+  return decodeURIComponent(last.split(':')[0]);
+}
+
+/** Fields left out are unchanged; an empty string clears a value (null is rejected). */
+export interface VariableUpdate {
+  name: string;
+  label?: string;
+  description?: string;
 }
 
 export class Redivis {
@@ -173,6 +201,53 @@ export class Redivis {
 
   release(owner: string, dataset: string): Promise<unknown> {
     return this.request('POST', `/datasets/${enc(`${owner}.${dataset}`)}/versions/next/release`);
+  }
+
+  /** Datasets owned by a user or organization (Redivis uses separate paths for each). */
+  async listDatasets(owner: string): Promise<{ datasets: DatasetSummary[]; isOrganization: boolean }> {
+    for (const [parent, isOrganization] of [['users', false], ['organizations', true]] as const) {
+      try {
+        const res = await this.request<{ results: DatasetSummary[] }>('GET', `/${parent}/${enc(owner)}/datasets?maxResults=1000`);
+        return { datasets: res.results ?? [], isOrganization };
+      } catch (e) {
+        if (!(e instanceof RedivisError && e.status === 404)) throw e;
+      }
+    }
+    throw new RedivisError(`No Redivis user or organization named "${owner}".`, 404);
+  }
+
+  async listTables(owner: string, dataset: string, version = 'current'): Promise<Table[]> {
+    const res = await this.request<{ results: Table[] }>('GET', `/datasets/${enc(`${owner}.${dataset}:${version}`)}/tables?maxResults=1000`);
+    return res.results ?? [];
+  }
+
+  /** Number of distinct non-null values, from Redivis's (cached) variable statistics. */
+  async numDistinct(owner: string, dataset: string, table: string, variable: string, version = 'current'): Promise<number | null> {
+    const ref = `${owner}.${dataset}:${version}.${table}`;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const stats = await this.request<{ status?: string; numDistinct?: number }>(
+        'GET',
+        `/tables/${enc(ref)}/variables/${enc(variable)}/statistics`,
+      );
+      // statistics are computed on first request and may still be running
+      if (stats.status !== 'running') return stats.numDistinct ?? null;
+      await sleep(2000);
+    }
+    return null;
+  }
+
+  /** Sets labels and descriptions, relayed through the Worker since browsers can't PATCH Redivis. */
+  async updateVariables(owner: string, dataset: string, table: string, variables: VariableUpdate[], version = 'current'): Promise<void> {
+    const ref = `${owner}.${dataset}:${version}.${table}`;
+    const res = await fetch(`${workerUrl()}/redivis/tables/${enc(ref)}/variables`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
+      body: JSON.stringify({ variables }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new RedivisError(data.error_description ?? data.error ?? `HTTP ${res.status}`, res.status, data.error);
+    }
   }
 
   async listVariables(owner: string, dataset: string, table: string, version = 'next'): Promise<Variable[]> {

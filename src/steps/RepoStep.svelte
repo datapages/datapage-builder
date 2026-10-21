@@ -12,8 +12,6 @@
   let error = $state('');
   let progress = $state<string[]>([]);
 
-  if (!wizard.repo.name) wizard.repo.name = wizard.data.dataset.toLowerCase().replace(/_+/g, '-');
-
   onMount(async () => {
     try {
       owners = await github().owners();
@@ -37,7 +35,8 @@
       if (wizard.repo.created !== fullName) {
         if (await gh.getRepo(ref)) throw new Error(`${fullName} already exists on GitHub. Choose a different name.`);
         progress.push('Creating the repo from the datapage template');
-        await gh.createFromTemplate(ref, `Datapage for ${wizard.data.owner}.${wizard.data.dataset}`);
+        // the description is set to the datapage's title when it's customized
+        await gh.createFromTemplate(ref, '');
         wizard.repo.created = fullName;
       }
       progress.push('Waiting for the template files to be copied');
@@ -83,7 +82,7 @@
         <label>
           Repo name
           <span class="hint">Your site will be at {wizard.repo.owner || 'owner'}.github.io/{wizard.repo.name || 'name'}</span>
-          <input type="text" bind:value={wizard.repo.name} disabled={running || !!wizard.repo.created} />
+          <input type="text" bind:value={wizard.repo.name} placeholder="my-datapage" disabled={running || !!wizard.repo.created} />
         </label>
       </div>
       {#if wizard.repo.name && !nameOk}

@@ -4,8 +4,6 @@
   import { session, wizard } from '../lib/state.svelte';
   import { joinVariables } from '../lib/variables';
 
-  let { onnext }: { onnext: () => void } = $props();
-
   type Status = 'pending' | 'active' | 'done' | 'failed';
   const TASKS = [
     { id: 'dataset', label: 'Create the dataset' },
@@ -139,6 +137,10 @@
       start('variables');
       const vars = await api.listVariables(owner, dataset, table, 'current');
       wizard.data.variables = joinVariables(vars, wizard.data.columns);
+      wizard.data.source = 'upload';
+      wizard.plots.config = null;
+      wizard.plots.reviewed = false;
+      wizard.data.variablesReviewed = false;
       wizard.data.released = true;
       finish();
     } catch (e) {
@@ -152,113 +154,92 @@
   }
 </script>
 
-<section class="stack">
-  <div>
-    <h2>Upload your data</h2>
-    <p class="muted">
-      Your CSV becomes a public dataset on Redivis. Your datapage reads it from there, and visitors can browse,
-      query, and download it.
-    </p>
+<div class="stack">
+  <div class="card stack">
+    <label>
+      CSV file
+      <span class="hint">One table with a header row.</span>
+      <input type="file" accept=".csv,text/csv" onchange={pickFile} disabled={running} />
+    </label>
+    {#if needsFile && wizard.data.fileName}
+      <p class="muted">Choose <strong>{wizard.data.fileName}</strong> again to continue (the page was reloaded).</p>
+    {/if}
+    {#if analyzing}<p class="muted">Checking the file…</p>{/if}
+
+    {#if analysis}
+      <p>
+        {analysis.rows.toLocaleString()} rows, {analysis.columns.length} columns, {formatBytes(analysis.bytes)}
+      </p>
+      {#if analysis.errors.length}
+        <div class="notice error">
+          This file needs fixing before it can be uploaded:
+          <ul>
+            {#each analysis.errors as e (e)}<li>{e}</li>{/each}
+          </ul>
+        </div>
+      {/if}
+      {#if analysis.sizeWarning}
+        <div class="notice warn">{analysis.sizeWarning.message}</div>
+      {/if}
+    {/if}
   </div>
 
-  {#if wizard.data.released}
+  {#if analysis && analysis.errors.length === 0}
     <div class="card stack">
-      <p>
-        <strong>{wizard.data.owner}.{wizard.data.dataset}</strong> is published on Redivis with
-        {wizard.data.rows?.toLocaleString() ?? 'its'} rows in the table <strong>{wizard.data.table}</strong>.
-      </p>
-      {#if wizard.data.datasetUrl}
-        <p><a href={wizard.data.datasetUrl} target="_blank" rel="noopener">View it on Redivis</a></p>
-      {/if}
-    </div>
-    <button onclick={onnext}>Continue</button>
-  {:else}
-    <div class="card stack">
-      <label>
-        CSV file
-        <span class="hint">One table with a header row. Excel files can be saved as CSV first.</span>
-        <input type="file" accept=".csv,text/csv" onchange={pickFile} disabled={running} />
-      </label>
-      {#if needsFile && wizard.data.fileName}
-        <p class="muted">Choose <strong>{wizard.data.fileName}</strong> again to continue (the page was reloaded).</p>
-      {/if}
-      {#if analyzing}<p class="muted">Checking the file…</p>{/if}
-
-      {#if analysis}
-        <p>
-          {analysis.rows.toLocaleString()} rows, {analysis.columns.length} columns, {formatBytes(analysis.bytes)}.
-        </p>
-        {#if analysis.errors.length}
-          <div class="notice error">
-            This file needs fixing before it can be uploaded:
-            <ul>
-              {#each analysis.errors as e (e)}<li>{e}</li>{/each}
-            </ul>
-          </div>
-        {/if}
-        {#if analysis.sizeWarning}
-          <div class="notice warn">{analysis.sizeWarning.message}</div>
-        {/if}
-      {/if}
-    </div>
-
-    {#if analysis && analysis.errors.length === 0}
-      <div class="card stack">
-        <div class="grid-2">
-          <label>
-            Redivis owner
-            <span class="hint">Your username, or an organization you administer</span>
-            <input type="text" bind:value={wizard.data.owner} disabled={running || !!wizard.data.createdDataset} />
-          </label>
-          <label>
-            Dataset name
-            <span class="hint">Letters, numbers, and underscores</span>
-            <input type="text" bind:value={wizard.data.dataset} disabled={running || !!wizard.data.createdDataset} />
-          </label>
-          <label>
-            Table name
-            <span class="hint">Letters, numbers, and underscores</span>
-            <input type="text" bind:value={wizard.data.table} disabled={running || !!wizard.data.createdDataset} />
-          </label>
-        </div>
-        {#if wizard.data.owner && wizard.data.owner !== wizard.redivisUser}
-          <label class="checkbox">
-            <input type="checkbox" bind:checked={wizard.data.isOrganization} disabled={running || !!wizard.data.createdDataset} />
-            <span><strong>{wizard.data.owner}</strong> is an organization</span>
-          </label>
-        {/if}
-        <label class="checkbox">
-          <input type="checkbox" bind:checked={acknowledged} disabled={running} />
-          <span>
-            I understand this dataset will be <strong>public</strong>: anyone can view and download all of its data,
-            on Redivis and on the datapage.
-          </span>
+      <div class="grid-2">
+        <label>
+          Redivis owner
+          <span class="hint">Your username or organization</span>
+          <input type="text" bind:value={wizard.data.owner} disabled={running || !!wizard.data.createdDataset} />
         </label>
-        {#if nameProblems.length}
-          <div class="notice warn">
-            <ul>
-              {#each nameProblems as p (p)}<li>{p}</li>{/each}
-            </ul>
-          </div>
-        {/if}
-        <div class="row">
-          <button onclick={upload} disabled={!canUpload}>{running ? 'Uploading…' : 'Upload to Redivis'}</button>
+        <label>
+          Dataset name
+          <span class="hint">Letters, numbers, and underscores</span>
+          <input type="text" bind:value={wizard.data.dataset} disabled={running || !!wizard.data.createdDataset} />
+        </label>
+        <label>
+          Table name
+          <span class="hint">Letters, numbers, and underscores</span>
+          <input type="text" bind:value={wizard.data.table} disabled={running || !!wizard.data.createdDataset} />
+        </label>
+      </div>
+      {#if wizard.data.owner && wizard.data.owner !== wizard.redivisUser}
+        <label class="checkbox">
+          <input type="checkbox" bind:checked={wizard.data.isOrganization} disabled={running || !!wizard.data.createdDataset} />
+          <span><strong>{wizard.data.owner}</strong> is an organization</span>
+        </label>
+      {/if}
+      <label class="checkbox">
+        <input type="checkbox" bind:checked={acknowledged} disabled={running} />
+        <span>
+          I understand this dataset will be <strong>public</strong>: anyone can view and download all of its data,
+          on Redivis and on the datapage.
+        </span>
+      </label>
+      {#if nameProblems.length}
+        <div class="notice warn">
+          <ul>
+            {#each nameProblems as p (p)}<li>{p}</li>{/each}
+          </ul>
         </div>
+      {/if}
+      <div class="row">
+        <button onclick={upload} disabled={!canUpload}>{running ? 'Uploading…' : 'Upload to Redivis'}</button>
       </div>
-    {/if}
-
-    {#if running || error || Object.values(statuses).some((s) => s !== 'pending')}
-      <div class="card stack">
-        <ul class="progress-list">
-          {#each TASKS as t (t.id)}
-            <li class={statuses[t.id]}>{t.label}</li>
-          {/each}
-        </ul>
-        {#if uploadFraction !== null}
-          <progress value={uploadFraction} max="1"></progress>
-        {/if}
-        {#if error}<div class="notice error">{error}</div>{/if}
-      </div>
-    {/if}
+    </div>
   {/if}
-</section>
+
+  {#if running || error || Object.values(statuses).some((s) => s !== 'pending')}
+    <div class="card stack">
+      <ul class="progress-list">
+        {#each TASKS as t (t.id)}
+          <li class={statuses[t.id]}>{t.label}</li>
+        {/each}
+      </ul>
+      {#if uploadFraction !== null}
+        <progress value={uploadFraction} max="1"></progress>
+      {/if}
+      {#if error}<div class="notice error">{error}</div>{/if}
+    </div>
+  {/if}
+</div>

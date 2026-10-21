@@ -36,6 +36,8 @@ export interface Customization {
   links: Link[];
   citation: Citation | null;
   primaryColor: string;
+  /** repo paths of the user's images, if they added them */
+  images: { highlight: string | null; highlightAlt: string; icon: string | null };
 }
 
 export const CUSTOMIZED_FILES = ['_quarto.yml', '_config.yml', 'index.qmd', 'about.qmd', 'theme.scss'] as const;
@@ -43,6 +45,20 @@ export type CustomizedFile = (typeof CUSTOMIZED_FILES)[number];
 
 // the template's penguin images, which nothing references after customizing
 export const TEMPLATE_IMAGES = ['images/culmen_depth.png', 'images/logo.png', 'images/lter_penguins.png'];
+
+export const IMAGE_TYPES: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+};
+
+/** Where an uploaded image goes in the repo, e.g. images/highlight.png */
+export function imagePath(kind: 'highlight' | 'icon', mimeType: string): string | null {
+  const ext = IMAGE_TYPES[mimeType];
+  return ext ? `images/${kind}.${ext}` : null;
+}
 
 /**
  * Everything the customization commit changes: edited template files, a new
@@ -68,15 +84,22 @@ export function customizeFiles(files: Record<CustomizedFile, string>, c: Customi
   };
 }
 
-export function customizeQuarto(text: string, c: Pick<Customization, 'title' | 'redivis'>): string {
+export function customizeQuarto(text: string, c: Pick<Customization, 'title' | 'redivis' | 'images'>): string {
   const doc = parseDocument(text);
   doc.setIn(['project', 'title'], c.title);
   // replace the whole block so a template `workflow:` key doesn't linger
   doc.set('redivis', doc.createNode({ user: c.redivis.user, dataset: c.redivis.dataset, table: c.redivis.table }));
-  // the template's logo is the palmerpenguins hex sticker
-  doc.deleteIn(['website', 'navbar', 'logo']);
-  deleteIfEmpty(doc, ['website', 'navbar']);
-  deleteIfEmpty(doc, ['website']);
+  // the template's logo is the palmerpenguins hex sticker; the user's icon
+  // replaces it and doubles as the favicon
+  if (c.images.icon) {
+    doc.setIn(['website', 'navbar', 'logo'], c.images.icon);
+    doc.setIn(['website', 'favicon'], c.images.icon);
+  } else {
+    deletePath(doc, ['website', 'navbar', 'logo']);
+    deletePath(doc, ['website', 'favicon']);
+    deleteIfEmpty(doc, ['website', 'navbar']);
+    deleteIfEmpty(doc, ['website']);
+  }
   return doc.toString();
 }
 
@@ -88,25 +111,48 @@ export function customizeConfig(text: string, plot: PlotConfig): string {
   return doc.toString();
 }
 
-export function customizeIndex(text: string, c: Pick<Customization, 'title' | 'subtitle' | 'description'>): string {
+const HIGHLIGHT_LINE = /^!\[[^\]]*\]\(images\/highlight\.\w+\)(\{[^}\n]*\})?\n+/m;
+
+export function customizeIndex(text: string, c: Pick<Customization, 'title' | 'subtitle' | 'description' | 'images'>): string {
   const edited = editFrontMatter(text, (doc) => {
     doc.set('title', c.title);
     setOptional(doc, 'subtitle', c.subtitle);
     setOptional(doc, 'description', c.description, true);
   });
-  // drop the layout block holding the template's penguin images
-  return edited.replace(/^::: \{layout-ncol=\d+\}\n(?:!\[.*\]\(images\/.*\)\n|\s*\n)*:::\n+/m, '');
+  // drop the layout block holding the template's penguin images, and any
+  // highlight image from an earlier customization
+  const body = edited
+    .replace(/^::: \{layout-ncol=\d+\}\n(?:!\[.*\]\(images\/.*\)\n|\s*\n)*:::\n+/m, '')
+    .replace(HIGHLIGHT_LINE, '');
+  if (!c.images.highlight) return body;
+  const alt = c.images.highlightAlt.trim().replace(/["\\]/g, '');
+  const image = `![](${c.images.highlight})${alt ? `{fig-alt="${alt}"}` : ''}\n\n`;
+  // put it first, right after the front matter
+  const match = body.match(FRONT_MATTER);
+  return match ? `${match[0]}\n${image}${body.slice(match[0].length).replace(/^\n+/, '')}` : image + body;
 }
 
-export function customizeAbout(text: string, c: Pick<Customization, 'title' | 'description' | 'repoUrl' | 'links' | 'citation'>): string {
+export function customizeAbout(
+  text: string,
+  c: Pick<Customization, 'title' | 'description' | 'repoUrl' | 'links' | 'citation' | 'images'>,
+): string {
   const edited = editFrontMatter(text, (doc) => {
     const links = [{ icon: 'github', text: 'GitHub', href: c.repoUrl }, ...c.links.filter((l) => l.text && l.href)];
     doc.setIn(['about', 'links'], doc.createNode(links));
-    // the template's about image is penguin artwork, and trestles (its
-    // side-by-side layout) leaves an empty column without an image
-    doc.deleteIn(['about', 'image']);
-    doc.deleteIn(['about', 'image-width']);
-    doc.setIn(['about', 'template'], 'jolla');
+    // the template's about image is penguin artwork. Its side-by-side layout,
+    // trestles, leaves an empty column without an image, so use jolla then
+    if (c.images.highlight) {
+      doc.setIn(['about', 'template'], 'trestles');
+      doc.setIn(['about', 'image'], c.images.highlight);
+      doc.setIn(['about', 'image-width'], '100%');
+      if (c.images.highlightAlt.trim()) doc.setIn(['about', 'image-alt'], c.images.highlightAlt.trim());
+      else deletePath(doc, ['about', 'image-alt']);
+    } else {
+      deletePath(doc, ['about', 'image']);
+      deletePath(doc, ['about', 'image-width']);
+      deletePath(doc, ['about', 'image-alt']);
+      doc.setIn(['about', 'template'], 'jolla');
+    }
     if (c.citation) doc.set('citation', doc.createNode(stripEmpty(c.citation)));
     else doc.delete('citation');
   });
@@ -175,6 +221,11 @@ function setOptional(doc: Document, key: string, value: string, block = false) {
   // keep long or multi-line text readable, like the template's description
   if (block && (trimmed.includes('\n') || trimmed.length > 80)) node.type = Scalar.BLOCK_LITERAL;
   doc.set(key, node);
+}
+
+/** deleteIn throws when a parent along the path is missing */
+function deletePath(doc: Document, path: string[]) {
+  if (doc.hasIn(path)) doc.deleteIn(path);
 }
 
 function deleteIfEmpty(doc: Document, path: string[]) {

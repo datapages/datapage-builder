@@ -1,8 +1,8 @@
 # datapage-builder
 
-A web app that walks people through making a [datapage](https://github.com/datapages/datapage): it uploads their CSV to Redivis as a public dataset, creates a GitHub repo from the datapage template, customizes it, and publishes it on GitHub Pages. See [DESIGN.md](DESIGN.md) for how it works.
+A web app that walks people through making a [datapage](https://github.com/datapages/datapage): it creates a GitHub repo from the datapage template, uploads their CSV to Redivis as a public dataset (or uses an existing Redivis table), lets them describe the variables, customizes the repo, and publishes it on GitHub Pages. See [DESIGN.md](DESIGN.md) for how it works.
 
-It's a static site (Vite + Svelte) served from `datapages.github.io/datapage-builder`. The only server-side piece is a small Cloudflare Worker in [`worker/`](worker/) that exchanges GitHub OAuth codes for tokens, since GitHub requires a client secret for that and doesn't allow it from the browser. Redivis sign-in happens entirely in the browser.
+It's a static site (Vite + Svelte) served from `datapages.github.io/datapage-builder`. The only server-side piece is a small Cloudflare Worker in [`worker/`](worker/) that does the two things a browser can't: it exchanges GitHub OAuth codes for tokens (GitHub requires a client secret and doesn't allow it from the browser), and it relays variable metadata updates to Redivis (Redivis's API doesn't allow PATCH from browsers). It stores nothing. Redivis sign-in happens entirely in the browser.
 
 ## Setup
 
@@ -61,5 +61,5 @@ npm run dev                                     # app on http://localhost:5173/d
   - `state.svelte.ts`: wizard progress, saved in localStorage
 - `src/steps/`: one component per wizard step
 - `callback/`: the page GitHub redirects the sign-in popup to
-- `worker/`: the token exchange Worker
+- `worker/`: the Worker (GitHub token exchange and the Redivis metadata relay)
 - `tests/fixtures/`: copies of the template files the customization tests run against. Update them when the template changes.

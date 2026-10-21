@@ -9,6 +9,11 @@ export const config = {
   template: { owner: 'datapages', repo: 'datapage' },
 };
 
+/** Base URL of the Worker, which also relays the Redivis requests browsers can't make. */
+export function workerUrl(): string {
+  return config.tokenExchangeUrl.replace(/\/token\/?$/, '');
+}
+
 /** Where GitHub redirects after authorization: the callback page next to this one. */
 export function githubRedirectUri(): string {
   return new URL('callback/', new URL(import.meta.env.BASE_URL, location.origin)).href;

@@ -8,6 +8,9 @@ export interface RepoRef {
   repo: string;
 }
 
+/** A file to commit: text, binary (base64), or null to delete. */
+export type FileChange = string | { base64: string } | null;
+
 export interface WorkflowRun {
   id: number;
   status: string | null;
@@ -103,10 +106,10 @@ export class GitHub {
   }
 
   /**
-   * Commits text files to the default branch in one commit and returns its sha.
+   * Commits files to the default branch in one commit and returns its sha.
    * A null value deletes the file (paths that don't exist are skipped).
    */
-  async commitFiles(ref: RepoRef, files: Record<string, string | null>, message: string): Promise<string> {
+  async commitFiles(ref: RepoRef, files: Record<string, FileChange>, message: string): Promise<string> {
     const repo = await this.getRepo(ref);
     const branch = repo?.default_branch ?? 'main';
     const { data: head } = await this.octokit.rest.git.getRef({ ...ref, ref: `heads/${branch}` });
@@ -114,13 +117,18 @@ export class GitHub {
     // deleting a path that isn't in the tree fails, so only delete what's there
     const { data: existing } = await this.octokit.rest.git.getTree({ ...ref, tree_sha: parent.tree.sha, recursive: 'true' });
     const paths = new Set(existing.tree.map((t) => t.path));
-    const entries = Object.entries(files)
-      .filter(([path, content]) => content !== null || paths.has(path))
-      .map(([path, content]) =>
-        content === null
-          ? { path, mode: '100644' as const, type: 'blob' as const, sha: null }
-          : { path, mode: '100644' as const, type: 'blob' as const, content },
-      );
+    const entries = await Promise.all(
+      Object.entries(files)
+        .filter(([path, content]) => content !== null || paths.has(path))
+        .map(async ([path, content]) => {
+          const base = { path, mode: '100644' as const, type: 'blob' as const };
+          if (content === null) return { ...base, sha: null };
+          if (typeof content === 'string') return { ...base, content };
+          // binary files go in as blobs first, since tree content has to be text
+          const { data: blob } = await this.octokit.rest.git.createBlob({ ...ref, content: content.base64, encoding: 'base64' });
+          return { ...base, sha: blob.sha };
+        }),
+    );
     const { data: tree } = await this.octokit.rest.git.createTree({ ...ref, base_tree: parent.tree.sha, tree: entries });
     const { data: commit } = await this.octokit.rest.git.createCommit({ ...ref, message, tree: tree.sha, parents: [parent.sha] });
     await this.octokit.rest.git.updateRef({ ...ref, ref: `heads/${branch}`, sha: commit.sha });
@@ -136,6 +144,10 @@ export class GitHub {
 
   async setHomepage(ref: RepoRef, homepage: string): Promise<void> {
     await this.octokit.rest.repos.update({ ...ref, homepage });
+  }
+
+  async setDescription(ref: RepoRef, description: string): Promise<void> {
+    await this.octokit.rest.repos.update({ ...ref, description });
   }
 }
 

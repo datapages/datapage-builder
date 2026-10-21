@@ -4,7 +4,7 @@
   --text: #1f1d24;
   --muted: #625e6b;
   --border: #dedbe4;
-  --accent: #7f3b97;
+  --accent: #317075;
   --accent-text: #ffffff;
   --accent-soft: #f2e9f5;
   --ok: #1a7f37;
@@ -16,14 +16,14 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root:not([data-theme='light']) {
     --bg: #17151b;
     --surface: #211e26;
     --text: #efedf2;
     --muted: #a7a2b0;
     --border: #3a3541;
-    --accent: #c08ad4;
+    --accent: #317075;
     --accent-text: #17151b;
     --accent-soft: #33273a;
     --ok: #4ac26b;
@@ -41,7 +41,7 @@
   --text: #efedf2;
   --muted: #a7a2b0;
   --border: #3a3541;
-  --accent: #c08ad4;
+  --accent: #317075;
   --accent-text: #17151b;
   --accent-soft: #33273a;
   --ok: #4ac26b;
@@ -60,7 +60,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.55 'Nunito Sans', system-ui, sans-serif;
+  font: 16px/1.55 'Jost', system-ui, sans-serif;
 }
 
 a {
@@ -176,6 +176,24 @@ select {
   color: var(--text);
 }
 
+input[type='file'] {
+  font: inherit;
+  margin-top: 0.4rem;
+  max-width: 100%;
+}
+
+input[type='file']::file-selector-button {
+  font: inherit;
+  font-weight: 700;
+  margin-right: 0.75rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
 textarea {
   min-height: 5rem;
   resize: vertical;
@@ -276,4 +294,9 @@ td {
 
 .card > h3:first-child {
   margin-top: 0;
+}
+
+input[type='radio'],
+input[type='checkbox'] {
+  accent-color: var(--accent);
 }

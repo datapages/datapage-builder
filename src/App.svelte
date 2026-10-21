@@ -3,13 +3,17 @@
   import ConnectStep from './steps/ConnectStep.svelte';
   import DataStep from './steps/DataStep.svelte';
   import RepoStep from './steps/RepoStep.svelte';
+  import VariablesStep from './steps/VariablesStep.svelte';
+  import PlotsStep from './steps/PlotsStep.svelte';
   import CustomizeStep from './steps/CustomizeStep.svelte';
   import PublishStep from './steps/PublishStep.svelte';
 
   const done: Record<StepId, () => boolean> = {
     connect: () => !!wizard.githubLogin && !!wizard.redivisUser,
-    data: () => wizard.data.released,
     repo: () => !!wizard.repo.created && wizard.repo.pagesEnabled,
+    data: () => wizard.data.released,
+    variables: () => wizard.data.variablesReviewed,
+    plots: () => wizard.plots.reviewed && !!wizard.plots.config,
     customize: () => !!wizard.customize.commitSha,
     publish: () => !!wizard.publish.siteUrl,
   };
@@ -58,10 +62,14 @@
   <main>
     {#if wizard.step === 'connect'}
       <ConnectStep onnext={next} />
-    {:else if wizard.step === 'data'}
-      <DataStep onnext={next} />
     {:else if wizard.step === 'repo'}
       <RepoStep onnext={next} />
+    {:else if wizard.step === 'data'}
+      <DataStep onnext={next} />
+    {:else if wizard.step === 'variables'}
+      <VariablesStep onnext={next} />
+    {:else if wizard.step === 'plots'}
+      <PlotsStep onnext={next} />
     {:else if wizard.step === 'customize'}
       <CustomizeStep onnext={next} />
     {:else}

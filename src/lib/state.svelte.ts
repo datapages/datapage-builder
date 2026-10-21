@@ -3,8 +3,10 @@ import type { PlotConfig, VariableInfo } from './variables';
 
 export const STEPS = [
   { id: 'connect', title: 'Connect accounts' },
-  { id: 'data', title: 'Upload data' },
   { id: 'repo', title: 'Create repo' },
+  { id: 'data', title: 'Choose data' },
+  { id: 'variables', title: 'Describe variables' },
+  { id: 'plots', title: 'Build plots' },
   { id: 'customize', title: 'Customize' },
   { id: 'publish', title: 'Publish' },
 ] as const;
@@ -15,6 +17,8 @@ export interface WizardState {
   githubLogin: string | null;
   redivisUser: string | null;
   data: {
+    /** upload a new CSV, or use a table already on Redivis */
+    source: 'upload' | 'existing';
     fileName: string | null;
     rows: number | null;
     columns: { name: string; numDistinct: number }[];
@@ -25,8 +29,11 @@ export interface WizardState {
     /** `owner.dataset` once this wizard has created it, so a retry can reuse it */
     createdDataset: string | null;
     datasetUrl: string | null;
+    /** the table is released and public, ready for the datapage */
     released: boolean;
     variables: VariableInfo[];
+    /** labels and descriptions saved to Redivis, or skipped */
+    variablesReviewed: boolean;
   };
   repo: {
     owner: string;
@@ -35,11 +42,19 @@ export interface WizardState {
     created: string | null;
     pagesEnabled: boolean;
   };
+  plots: {
+    config: PlotConfig | null;
+    /** the user has confirmed the plot setup */
+    reviewed: boolean;
+  };
   customize: {
     title: string;
     subtitle: string;
     description: string;
-    plot: PlotConfig | null;
+    /** alt text for the highlight image */
+    imageAlt: string;
+    /** repo paths of images already committed, kept when nothing new is picked */
+    images: { highlight: string | null; icon: string | null };
     links: Link[];
     doi: string;
     citation: Citation | null;
@@ -59,6 +74,7 @@ function initialState(): WizardState {
     githubLogin: null,
     redivisUser: null,
     data: {
+      source: 'upload',
       fileName: null,
       rows: null,
       columns: [],
@@ -70,13 +86,16 @@ function initialState(): WizardState {
       datasetUrl: null,
       released: false,
       variables: [],
+      variablesReviewed: false,
     },
     repo: { owner: '', name: '', created: null, pagesEnabled: false },
+    plots: { config: null, reviewed: false },
     customize: {
       title: '',
       subtitle: '',
       description: '',
-      plot: null,
+      imageAlt: '',
+      images: { highlight: null, icon: null },
       links: [],
       doi: '',
       citation: null,
@@ -123,5 +142,9 @@ export function resetWizard(): void {
   Object.assign(wizard, initialState());
 }
 
-/** The CSV the user picked. Files can't be saved, so this is lost on reload. */
-export const session = $state<{ file: File | null }>({ file: null });
+/** Files the user picked. Files can't be saved, so these are lost on reload. */
+export const session = $state<{ file: File | null; highlightImage: File | null; icon: File | null }>({
+  file: null,
+  highlightImage: null,
+  icon: null,
+});

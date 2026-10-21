@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { joinVariables, plotConfigProblems, suggestPlotConfig } from '../src/lib/variables';
+import { joinVariables, plotConfigProblems, suggestPlotConfig, variableUpdates } from '../src/lib/variables';
 
 // the penguins table's variables, with distinct counts from Redivis
 const penguins = [
@@ -49,8 +49,32 @@ describe('joinVariables', () => {
       [{ numDistinct: 4 }, { numDistinct: 40 }],
     );
     expect(joined).toEqual([
-      { name: 'a_col', type: 'string', label: undefined, numDistinct: 4 },
-      { name: 'b_col', type: 'integer', label: undefined, numDistinct: 40 },
+      { name: 'a_col', type: 'string', label: undefined, description: undefined, numDistinct: 4 },
+      { name: 'b_col', type: 'integer', label: undefined, description: undefined, numDistinct: 40 },
     ]);
+  });
+});
+
+describe('variableUpdates', () => {
+  const current = [
+    { name: 'species', label: 'Species', description: 'Penguin species' },
+    { name: 'island', label: null, description: null },
+    { name: 'year', label: null, description: null },
+  ];
+
+  it('sends only the fields that changed, leaving blank fields out', () => {
+    expect(
+      variableUpdates(current, [
+        { name: 'species', label: 'Species', description: 'Penguin species' },
+        { name: 'island', label: 'Island', description: '' },
+        { name: 'year', label: '  ', description: '' },
+      ]),
+    ).toEqual([{ name: 'island', label: 'Island' }]);
+  });
+
+  it('clears a value that was emptied', () => {
+    expect(
+      variableUpdates(current, [{ name: 'species', label: 'Species name', description: '' }]),
+    ).toEqual([{ name: 'species', label: 'Species name', description: '' }]);
   });
 });

@@ -54,8 +54,7 @@
     <h2>Connect your accounts</h2>
     <p class="muted">
       Your data goes to <a href="https://redivis.com" target="_blank" rel="noopener">Redivis</a>, and your site is
-      built and hosted on GitHub. The builder works on your behalf in both, from this browser tab only: nothing is
-      stored on a server.
+      built and hosted on GitHub. The builder works on your behalf in both from this browser tab only -- we don't store your credentials.
     </p>
   </div>
 

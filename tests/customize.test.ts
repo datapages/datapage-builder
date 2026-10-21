@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { buildCommit, CUSTOMIZED_FILES, customizeFiles, customizeTheme, TEMPLATE_IMAGES, type Customization } from '../src/lib/customize';
+import { buildCommit, CUSTOMIZED_FILES, customizeFiles, customizeTheme, imagePath, TEMPLATE_IMAGES, type Customization } from '../src/lib/customize';
 
 // copies of the datapages/datapage template files
 const template = Object.fromEntries(
@@ -24,6 +24,7 @@ const customization: Customization = {
   links: [{ icon: 'globe', text: 'Project site', href: 'https://example.org' }],
   citation: { type: 'article-journal', title: 'Birds', author: ['A. Person'], issued: '2024', doi: '10.1/xyz' },
   primaryColor: '#123abc',
+  images: { highlight: null, highlightAlt: '', icon: null },
 };
 
 const frontMatter = (text: string) => parse(text.match(/^---\n([\s\S]*?)\n---/)![1]);
@@ -134,5 +135,44 @@ describe('buildCommit', () => {
     for (const [path, text] of Object.entries(changes)) {
       if (text !== null) expect(text, path).not.toMatch(/penguin|palmer|horst|gorman|culmen|bill_length/i);
     }
+  });
+});
+
+describe('user images', () => {
+  const withImages: Customization = {
+    ...customization,
+    images: { highlight: 'images/highlight.jpg', highlightAlt: 'Birds at a "feeder"', icon: 'images/icon.png' },
+  };
+  const out = customizeFiles(template, withImages);
+
+  it('uses the icon as the navbar logo and favicon', () => {
+    expect(parse(out['_quarto.yml']).website).toEqual({ navbar: { logo: 'images/icon.png' }, favicon: 'images/icon.png' });
+  });
+
+  it('puts the highlight image first on the homepage, with alt text', () => {
+    expect(out['index.qmd']).toMatch(/---\n\n!\[\]\(images\/highlight\.jpg\)\{fig-alt="Birds at a feeder"\}\n\n\{\{< include _load-data.qmd >\}\}/);
+    expect(out['index.qmd']).not.toContain('lter_penguins');
+  });
+
+  it('shows the highlight image beside the About page text', () => {
+    const fm = frontMatter(out['about.qmd']);
+    expect(fm.about).toMatchObject({ template: 'trestles', image: 'images/highlight.jpg', 'image-width': '100%', 'image-alt': 'Birds at a "feeder"' });
+  });
+
+  it('replaces rather than duplicates images when customizing again', () => {
+    const again = customizeFiles(out, { ...withImages, images: { highlight: 'images/highlight.png', highlightAlt: '', icon: null } });
+    expect(again['index.qmd'].match(/images\/highlight/g)).toEqual(['images/highlight']);
+    expect(again['index.qmd']).toContain('![](images/highlight.png)\n');
+    expect(parse(again['_quarto.yml']).website).toBeUndefined();
+    const removed = customizeFiles(again, customization);
+    expect(removed['index.qmd']).not.toContain('images/');
+    expect(frontMatter(removed['about.qmd']).about).toMatchObject({ template: 'jolla' });
+    expect(frontMatter(removed['about.qmd']).about.image).toBeUndefined();
+  });
+
+  it('names uploads by kind and type', () => {
+    expect(imagePath('highlight', 'image/jpeg')).toBe('images/highlight.jpg');
+    expect(imagePath('icon', 'image/svg+xml')).toBe('images/icon.svg');
+    expect(imagePath('icon', 'image/tiff')).toBeNull();
   });
 });
