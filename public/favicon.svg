@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Datapage Builder</title>
+  <defs>
+    <clipPath id="badge"><circle cx="50" cy="50" r="50"/></clipPath>
+  </defs>
+  <circle cx="50" cy="50" r="50" fill="#749bb5"/>
+  <!-- the logo's penguin, cropped to its head, with bigger features to read at small sizes -->
+  <g clip-path="url(#badge)">
+    <ellipse cx="50" cy="76" rx="36" ry="36" fill="#1c1a20" stroke="#1c1a20" stroke-width="3"/>
+  </g>
+  <circle cx="35" cy="66" r="9" fill="#ffffff"/>
+  <circle cx="65" cy="66" r="9" fill="#ffffff"/>
+  <circle cx="37" cy="67" r="4.5" fill="#1c1a20"/>
+  <circle cx="63" cy="67" r="4.5" fill="#1c1a20"/>
+  <path d="M43.5 75 C 47.5 74, 52.5 74, 56.5 75 C 58.6 75.5, 58.9 77.3, 57.6 78.8 L 52.4 84.6 C 51.1 86, 48.9 86, 47.6 84.6 L 42.4 78.8 C 41.1 77.3, 41.4 75.5, 43.5 75 Z" fill="#FF7A02"/>
+  <!-- wizard hat -->
+  <path d="M18 46 C 31 33, 41 18, 60 5 C 58 20, 64 34, 82 46 Z" fill="#8800aa"/>
+  <ellipse cx="50" cy="47" rx="38" ry="7.5" fill="#8800aa"/>
+  <path d="M52.00 20.30 C 52.00 21.93, 53.29 24.85, 55.87 27.44 C 58.45 30.02, 61.38 31.30, 63.00 31.30 C 61.38 31.30, 58.45 32.59, 55.87 35.17 C 53.29 37.75, 52.00 40.68, 52.00 42.30 C 52.00 40.68, 50.71 37.75, 48.13 35.17 C 45.55 32.59, 42.62 31.30, 41.00 31.30 C 42.62 31.30, 45.55 30.02, 48.13 27.44 C 50.71 24.85, 52.00 21.93, 52.00 20.30 Z" fill="#FF7A02"/>
+</svg>
