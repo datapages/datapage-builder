@@ -29,6 +29,20 @@
     window.scrollTo({ top: 0 });
   }
 
+  const THEME_KEY = 'datapage-builder:theme';
+  // what the CSS picked, from the saved choice or the system setting
+  let theme = $state(getComputedStyle(document.documentElement).colorScheme === 'dark' ? 'dark' : 'light');
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      // ignore, the choice just won't be remembered
+    }
+  }
+
   function startOver() {
     if (confirm('Start over? This forgets your progress here, but anything already created on Redivis or GitHub stays.')) {
       resetWizard();
@@ -45,6 +59,13 @@
         Create a <a href="https://datapages.github.io/datapage/" target="_blank" rel="noopener">datapage</a>: an
         interactive website for your data, hosted on GitHub Pages with the data on Redivis.
       </p>
+    </div>
+    <div class="theme-toggle">
+      <i class="bi bi-sun" aria-hidden="true"></i>
+      <button class="switch" role="switch" aria-checked={theme === 'dark'} aria-label="Dark mode" onclick={toggleTheme}>
+        <span class="knob"></span>
+      </button>
+      <i class="bi bi-moon-stars" aria-hidden="true"></i>
     </div>
   </header>
 
@@ -102,6 +123,49 @@
   }
   .logo {
     flex: none;
+  }
+  .theme-toggle {
+    flex: none;
+    align-self: flex-start;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .switch {
+    position: relative;
+    width: 2.6rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--border);
+  }
+  .switch[aria-checked='true'] {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .knob {
+    position: absolute;
+    top: 50%;
+    left: 0.15rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+    transform: translateY(-50%);
+    transition: left 0.15s ease;
+  }
+  .switch[aria-checked='true'] .knob {
+    left: calc(100% - 1.25rem);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .knob {
+      transition: none;
+    }
   }
   header h1 {
     margin: 0;
