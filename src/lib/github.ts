@@ -46,6 +46,17 @@ export class GitHub {
     }
   }
 
+  /** Repos under an owner that the user can push to, most recently pushed first. */
+  async listRepos(owner: string, isViewer: boolean): Promise<string[]> {
+    const repos = isViewer
+      ? await this.octokit.paginate(this.octokit.rest.repos.listForAuthenticatedUser, { affiliation: 'owner', per_page: 100 })
+      : await this.octokit.paginate(this.octokit.rest.repos.listForOrg, { org: owner, per_page: 100 });
+    return repos
+      .filter((r) => !r.archived && r.permissions?.push !== false)
+      .sort((a, b) => (b.pushed_at ?? '').localeCompare(a.pushed_at ?? ''))
+      .map((r) => r.name);
+  }
+
   async createFromTemplate({ owner, repo }: RepoRef, description: string): Promise<void> {
     await this.octokit.rest.repos.createUsingTemplate({
       template_owner: TEMPLATE_OWNER,
@@ -103,6 +114,18 @@ export class GitHub {
       }),
     );
     return Object.fromEntries(entries) as Record<P, string>;
+  }
+
+  /** A text file's contents, or null if it doesn't exist. */
+  async readFile(ref: RepoRef, path: string): Promise<string | null> {
+    try {
+      const { data } = await this.octokit.rest.repos.getContent({ ...ref, path });
+      return Array.isArray(data) || data.type !== 'file' ? null : decodeBase64(data.content);
+    } catch (e: any) {
+      // 409 means the repo is empty
+      if (e.status === 404 || e.status === 409) return null;
+      throw e;
+    }
   }
 
   /**

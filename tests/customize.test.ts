@@ -27,6 +27,9 @@ const customization: Customization = {
   images: { highlight: null, highlightAlt: '', icon: null },
 };
 
+const templateReadme = readFileSync(new URL('./fixtures/README.md', import.meta.url), 'utf8');
+const baseline = { readme: templateReadme, template: { readme: templateReadme, about: template['about.qmd'] } };
+
 const frontMatter = (text: string) => parse(text.match(/^---\n([\s\S]*?)\n---/)![1]);
 
 describe('customizeFiles', () => {
@@ -112,14 +115,14 @@ describe('customizeFiles', () => {
 });
 
 describe('buildCommit', () => {
-  const changes = buildCommit(template, customization);
+  const changes = buildCommit(template, customization, baseline);
 
   it('includes only files that changed, a README, and image deletions', () => {
     expect(Object.keys(changes).sort()).toEqual(
       [...CUSTOMIZED_FILES, 'README.md', ...TEMPLATE_IMAGES].sort(),
     );
     for (const image of TEMPLATE_IMAGES) expect(changes[image]).toBeNull();
-    const unchanged = buildCommit({ ...template, 'theme.scss': '$primary: #123abc;\n' }, customization);
+    const unchanged = buildCommit({ ...template, 'theme.scss': '$primary: #123abc;\n' }, customization, baseline);
     expect(unchanged['theme.scss']).toBeUndefined();
   });
 
@@ -135,6 +138,45 @@ describe('buildCommit', () => {
     for (const [path, text] of Object.entries(changes)) {
       if (text !== null) expect(text, path).not.toMatch(/penguin|palmer|horst|gorman|culmen|bill_length/i);
     }
+  });
+});
+
+describe('buildCommit on a datapage that was customized before', () => {
+  const first = customizeFiles(template, customization);
+  const firstReadme = buildCommit(template, customization, baseline)['README.md']!;
+  const again = { ...customization, title: 'Bird Tallies', description: 'New text.' };
+
+  it('replaces the README and About text the builder wrote', () => {
+    const changes = buildCommit(first, again, { ...baseline, readme: firstReadme });
+    expect(changes['README.md']).toMatch(/^# Bird Tallies\n/);
+    expect(changes['about.qmd']).toMatch(/---\n\n## Bird Tallies\n\nNew text.\n$/);
+  });
+
+  it('keeps a README and About text edited by hand', () => {
+    const edited = { ...first, 'about.qmd': first['about.qmd'] + '\nMore about the birds.\n' };
+    const changes = buildCommit(edited, { ...again, links: [] }, { ...baseline, readme: firstReadme + '\n## Notes\n' });
+    expect(changes['README.md']).toBeUndefined();
+    expect(changes['about.qmd']).toContain('## Bird Counts\n\nData from the');
+    expect(changes['about.qmd']).toContain('More about the birds.');
+    expect(frontMatter(changes['about.qmd']!).about.links).toHaveLength(1);
+  });
+
+  it('writes a README when there is none', () => {
+    expect(buildCommit(first, again, { ...baseline, readme: null })['README.md']).toMatch(/^# Bird Tallies/);
+  });
+
+  it("doesn't delete a template image that's still in use", () => {
+    const changes = buildCommit(first, { ...again, images: { highlight: null, highlightAlt: '', icon: 'images/logo.png' } }, baseline);
+    expect('images/logo.png' in changes).toBe(false);
+    expect(changes['images/lter_penguins.png']).toBeNull();
+  });
+
+  it("keeps the user's own image layouts and About template", () => {
+    const index = first['index.qmd'].replace('{{< include _load-data.qmd >}}', '::: {layout-ncol=2}\n![](images/a.png)\n\n![](images/b.png)\n:::\n\n{{< include _load-data.qmd >}}');
+    const about = first['about.qmd'].replace('template: jolla', 'template: solana');
+    const out = customizeFiles({ ...first, 'index.qmd': index, 'about.qmd': about }, { ...again, images: { highlight: 'images/h.png', highlightAlt: '', icon: null } });
+    expect(out['index.qmd']).toContain('images/a.png');
+    expect(frontMatter(out['about.qmd']).about.template).toBe('solana');
   });
 });
 

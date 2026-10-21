@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte';
   import { errorMessage, github } from '../lib/clients';
   import { CUSTOMIZED_FILES, IMAGE_TYPES, buildCommit, imagePath } from '../lib/customize';
+  import { config } from '../lib/config';
   import { fetchCitation } from '../lib/doi';
   import type { FileChange } from '../lib/github';
   import { session, wizard } from '../lib/state.svelte';
@@ -104,7 +105,12 @@
     error = '';
     try {
       const gh = github();
-      const templateFiles = await gh.readFiles(ref, CUSTOMIZED_FILES);
+      const template = { owner: config.template.owner, repo: config.template.repo };
+      const [repoFiles, readmeText, templateFiles] = await Promise.all([
+        gh.readFiles(ref, CUSTOMIZED_FILES),
+        gh.readFile(ref, 'README.md'),
+        gh.readFiles(template, ['README.md', 'about.qmd']),
+      ]);
       const siteUrl = (await gh.pagesUrl(ref)) ?? `https://${ref.owner.toLowerCase()}.github.io/${ref.repo}/`;
 
       // new uploads replace what's committed; otherwise keep what's there
@@ -112,7 +118,7 @@
         highlight: files.highlight ? imagePath('highlight', files.highlight.type) : c.images.highlight,
         icon: files.icon ? imagePath('icon', files.icon.type) : c.images.icon,
       };
-      const changes: Record<string, FileChange> = buildCommit(templateFiles, {
+      const customization = {
         title: c.title.trim(),
         subtitle: c.subtitle,
         description: c.description,
@@ -125,6 +131,10 @@
         citation: c.citation,
         primaryColor: c.primaryColor,
         images: { highlight: paths.highlight, highlightAlt: c.imageAlt, icon: paths.icon },
+      };
+      const changes: Record<string, FileChange> = buildCommit(repoFiles, customization, {
+        readme: readmeText,
+        template: { readme: templateFiles['README.md'], about: templateFiles['about.qmd'] },
       });
       for (const kind of ['highlight', 'icon'] as const) {
         // remove earlier uploads that aren't used anymore (e.g. a .png replaced by a .jpg)
@@ -207,6 +217,12 @@
 
   <div class="card stack">
     <h3>About page</h3>
+    {#if wizard.repo.source === 'existing'}
+      <p class="muted">
+        The About page shows the title and description, unless its text has been edited in <code>about.qmd</code>.
+        Then that text is kept, and so is a README that's been edited.
+      </p>
+    {/if}
     <label>
       Citation DOI
       <span class="hint">Optional. A paper or dataset people should cite, e.g. 10.1371/journal.pone.0090081</span>

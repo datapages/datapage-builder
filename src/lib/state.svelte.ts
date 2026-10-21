@@ -1,9 +1,10 @@
 import type { Citation, Link } from './customize';
+import { isPlaceholder, type DatapageSettings } from './datapage';
 import type { PlotConfig, VariableInfo } from './variables';
 
 export const STEPS = [
   { id: 'connect', title: 'Connect accounts' },
-  { id: 'repo', title: 'Create repo' },
+  { id: 'repo', title: 'Set up repo' },
   { id: 'data', title: 'Choose data' },
   { id: 'variables', title: 'Describe variables' },
   { id: 'plots', title: 'Build plots' },
@@ -36,11 +37,15 @@ export interface WizardState {
     variablesReviewed: boolean;
   };
   repo: {
+    /** make a new datapage, or edit one that already exists */
+    source: 'new' | 'existing';
     owner: string;
     name: string;
-    /** `owner/name` once created */
+    /** `owner/name` once created, or once an existing datapage is chosen */
     created: string | null;
     pagesEnabled: boolean;
+    /** an existing datapage's settings when it was chosen */
+    current: DatapageSettings | null;
   };
   plots: {
     config: PlotConfig | null;
@@ -68,7 +73,7 @@ export interface WizardState {
 
 const STORAGE_KEY = 'datapage-builder:wizard';
 
-function initialState(): WizardState {
+export function initialState(): WizardState {
   return {
     step: 'connect',
     githubLogin: null,
@@ -88,7 +93,7 @@ function initialState(): WizardState {
       variables: [],
       variablesReviewed: false,
     },
-    repo: { owner: '', name: '', created: null, pagesEnabled: false },
+    repo: { source: 'new', owner: '', name: '', created: null, pagesEnabled: false, current: null },
     plots: { config: null, reviewed: false },
     customize: {
       title: '',
@@ -140,6 +145,31 @@ $effect.root(() => {
 
 export function resetWizard(): void {
   Object.assign(wizard, initialState());
+}
+
+/**
+ * Starts editing an existing datapage: the later steps begin from its
+ * settings, unless it still has the template's example content.
+ */
+export function startFromDatapage(settings: DatapageSettings): void {
+  const fresh = initialState();
+  Object.assign(wizard, { data: fresh.data, plots: fresh.plots, customize: fresh.customize, publish: fresh.publish });
+  Object.assign(session, { file: null, highlightImage: null, icon: null });
+  wizard.repo.current = structuredClone(settings);
+  if (isPlaceholder(settings)) return;
+  const s = structuredClone(settings);
+  if (s.redivis) Object.assign(wizard.data, { source: 'existing', owner: s.redivis.user, dataset: s.redivis.dataset, table: s.redivis.table });
+  Object.assign(wizard.customize, {
+    title: s.title,
+    subtitle: s.subtitle,
+    description: s.description,
+    imageAlt: s.images.highlightAlt,
+    images: { highlight: s.images.highlight, icon: s.images.icon },
+    links: s.links,
+    citation: s.citation,
+    doi: s.citation?.doi ?? '',
+    primaryColor: s.primaryColor ?? fresh.customize.primaryColor,
+  });
 }
 
 /** Files the user picked. Files can't be saved, so these are lost on reload. */

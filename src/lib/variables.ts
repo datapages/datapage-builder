@@ -34,6 +34,26 @@ export function suggestPlotConfig(vars: VariableInfo[]): PlotConfig {
   };
 }
 
+/**
+ * An existing datapage's plot config, limited to the variables the table has
+ * now. Defaults that no longer fit are left blank for the user to pick.
+ */
+export function fitPlotConfig(config: PlotConfig, vars: { name: string }[]): PlotConfig {
+  const names = new Set(vars.map((v) => v.name));
+  const numerical = config.numerical.filter((n) => names.has(n));
+  const categorical = config.categorical.filter((n) => names.has(n));
+  const { x, y, color } = config.defaults;
+  return {
+    numerical,
+    categorical,
+    defaults: {
+      x: numerical.includes(x) ? x : '',
+      y: numerical.includes(y) ? y : '',
+      color: categorical.includes(color) ? color : '',
+    },
+  };
+}
+
 /** Problems that would break the template's plots. */
 export function plotConfigProblems(config: PlotConfig): string[] {
   const problems: string[] = [];

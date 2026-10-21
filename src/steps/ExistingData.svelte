@@ -3,7 +3,7 @@
   import { errorMessage, redivis } from '../lib/clients';
   import { referenceName, type Dataset, type DatasetSummary, type Table } from '../lib/redivis';
   import { wizard } from '../lib/state.svelte';
-  import { joinVariables } from '../lib/variables';
+  import { fitPlotConfig, joinVariables } from '../lib/variables';
 
   // statistics requests run in parallel, a few at a time
   const CONCURRENCY = 6;
@@ -98,6 +98,7 @@
       }
       await Promise.all(Array.from({ length: Math.min(CONCURRENCY, vars.length) }, worker));
 
+      const variables = joinVariables(vars, counts.map((numDistinct) => ({ numDistinct })));
       Object.assign(wizard.data, {
         source: 'existing',
         owner: o,
@@ -109,12 +110,18 @@
         fileName: null,
         columns: [],
         createdDataset: null,
-        variables: joinVariables(vars, counts.map((numDistinct) => ({ numDistinct }))),
+        variables,
         variablesReviewed: false,
         released: true,
       });
-      // re-suggest plot variables for the new table
-      wizard.plots.config = null;
+      // keep an existing datapage's plots if it's the same table; otherwise
+      // suggest plot variables for the new one
+      const current = wizard.repo.current;
+      const same =
+        current?.redivis &&
+        [current.redivis.user, current.redivis.dataset, current.redivis.table].join('.').toLowerCase() ===
+          [o, datasetName, t].join('.').toLowerCase();
+      wizard.plots.config = same && current.plot ? fitPlotConfig(current.plot, variables) : null;
       wizard.plots.reviewed = false;
     } catch (e) {
       error = errorMessage(e);

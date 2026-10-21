@@ -1,9 +1,15 @@
 <script lang="ts">
+  import { isPlaceholder } from '../lib/datapage';
   import { wizard } from '../lib/state.svelte';
   import ExistingData from './ExistingData.svelte';
   import UploadData from './UploadData.svelte';
 
   let { onnext }: { onnext: () => void } = $props();
+
+  // the table an existing datapage uses, unless it's still the template's example
+  const current = $derived(
+    wizard.repo.current?.redivis && !isPlaceholder(wizard.repo.current) ? wizard.repo.current.redivis : null,
+  );
 
   function chooseAgain() {
     wizard.data.released = false;
@@ -19,6 +25,13 @@
       CSV to make a new dataset, or use a table you already have on Redivis.
     </p>
   </div>
+
+  {#if current && !wizard.data.released}
+    <div class="notice info">
+      Your datapage uses the table <strong>{current.table}</strong> in <strong>{current.user}.{current.dataset}</strong>
+      now. It's chosen below: use it to keep it, or pick different data.
+    </div>
+  {/if}
 
   {#if wizard.data.released}
     <div class="card stack">
@@ -58,21 +71,3 @@
   {/if}
 </section>
 
-<style>
-  .source-toggle {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: 0.75rem;
-  }
-  .source-toggle label {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.75rem 1rem;
-    background: var(--surface);
-    cursor: pointer;
-  }
-  .source-toggle label:has(input:checked) {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
-  }
-</style>

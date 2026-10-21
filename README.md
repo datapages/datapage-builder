@@ -1,6 +1,6 @@
 # datapage-builder
 
-A web app that walks people through making a [datapage](https://github.com/datapages/datapage): it creates a GitHub repo from the datapage template, uploads their CSV to Redivis as a public dataset (or uses an existing Redivis table), lets them describe the variables, customizes the repo, and publishes it on GitHub Pages. See [DESIGN.md](DESIGN.md) for how it works.
+A web app that walks people through making a [datapage](https://github.com/datapages/datapage), or editing one: it creates a GitHub repo from the datapage template (or uses an existing datapage repo), uploads their CSV to Redivis as a public dataset (or uses an existing Redivis table), lets them describe the variables, customizes the repo, and publishes it on GitHub Pages. See [DESIGN.md](DESIGN.md) for how it works.
 
 It's a static site (Vite + Svelte) served from `datapages.github.io/datapage-builder`. The only server-side piece is a small Cloudflare Worker in [`worker/`](worker/) that does the two things a browser can't: it exchanges GitHub OAuth codes for tokens (GitHub requires a client secret and doesn't allow it from the browser), and it relays variable metadata updates to Redivis (Redivis's API doesn't allow PATCH from browsers). It stores nothing. Redivis sign-in happens entirely in the browser.
 
@@ -48,7 +48,7 @@ npm run dev:worker                              # token exchange on http://local
 npm run dev                                     # app on http://localhost:5173/datapage-builder/
 ```
 
-`npm test` runs the unit tests (template customization, CSV checks, variable suggestions, DOI lookup, the Worker), and `npm run check` type-checks.
+`npm test` runs the unit tests (template customization, reading existing datapages, CSV checks, variable suggestions, DOI lookup, the Worker), and `npm run check` type-checks.
 
 ## Layout
 
@@ -58,6 +58,7 @@ npm run dev                                     # app on http://localhost:5173/d
   - `csv.ts`: checks the CSV in the browser before anything is uploaded
   - `variables.ts`: suggests which variables to plot
   - `customize.ts`: edits the template's files for the new datapage
+  - `datapage.ts`: checks that an existing repo is a datapage and reads its settings back
   - `state.svelte.ts`: wizard progress, saved in localStorage
 - `src/steps/`: one component per wizard step
 - `callback/`: the page GitHub redirects the sign-in popup to

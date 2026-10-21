@@ -1,6 +1,7 @@
 // Edits the template's files for a new datapage. Uses yaml's Document API so
 // comments and formatting in the template's YAML survive the edits.
-import { parseDocument, Scalar, type Document } from 'yaml';
+import { parse, parseDocument, Scalar, type Document } from 'yaml';
+import { isBuilderReadme, readDatapage } from './datapage';
 import type { PlotConfig } from './variables';
 
 export interface Link {
@@ -60,26 +61,47 @@ export function imagePath(kind: 'highlight' | 'icon', mimeType: string): string 
   return ext ? `images/${kind}.${ext}` : null;
 }
 
+/** What the commit compares against to tell builder-written text from the user's own. */
+export interface Baseline {
+  /** the repo's README.md, or null if it has none */
+  readme: string | null;
+  /** the template's README.md and about.qmd */
+  template: { readme: string; about: string };
+}
+
 /**
  * Everything the customization commit changes: edited template files, a new
- * README, and the template's images (null means delete).
+ * README, and the template's images (null means delete). The README and the
+ * About page's text are only replaced while they're still the template's or
+ * what the builder wrote, so edits made in the repo survive.
  */
-export function buildCommit(files: Record<CustomizedFile, string>, c: Customization): Record<string, string | null> {
-  const customized = customizeFiles(files, c);
+export function buildCommit(files: Record<CustomizedFile, string>, c: Customization, baseline: Baseline): Record<string, string | null> {
+  const previous = readDatapage(files, c.repoUrl);
+  const same = (a: string, b: string) => a.trim() === b.trim();
+  const about = bodyOf(files['about.qmd']);
+  const replaceAbout = same(about, bodyOf(baseline.template.about)) || same(about, aboutBody(previous.title, previous.description));
+  const customized = customizeFiles(files, c, { keepAboutBody: !replaceAbout });
   const changed = Object.fromEntries(Object.entries(customized).filter(([path, text]) => text !== files[path as CustomizedFile]));
+  const replaceReadme =
+    baseline.readme === null || same(baseline.readme, baseline.template.readme) || isBuilderReadme(baseline.readme, previous);
+  const inUse = [c.images.highlight, c.images.icon];
   return {
     ...changed,
-    'README.md': readme(c),
-    ...Object.fromEntries(TEMPLATE_IMAGES.map((path) => [path, null])),
+    ...(replaceReadme ? { 'README.md': readme(c) } : {}),
+    ...Object.fromEntries(TEMPLATE_IMAGES.filter((path) => !inUse.includes(path)).map((path) => [path, null])),
   };
 }
 
-export function customizeFiles(files: Record<CustomizedFile, string>, c: Customization): Record<CustomizedFile, string> {
+export function customizeFiles(
+  files: Record<CustomizedFile, string>,
+  c: Customization,
+  { keepAboutBody = false } = {},
+): Record<CustomizedFile, string> {
   return {
     '_quarto.yml': customizeQuarto(files['_quarto.yml'], c),
     '_config.yml': customizeConfig(files['_config.yml'], c.plot),
     'index.qmd': customizeIndex(files['index.qmd'], c),
-    'about.qmd': customizeAbout(files['about.qmd'], c),
+    'about.qmd': customizeAbout(files['about.qmd'], c, keepAboutBody),
     'theme.scss': customizeTheme(files['theme.scss'], c.primaryColor),
   };
 }
@@ -111,7 +133,10 @@ export function customizeConfig(text: string, plot: PlotConfig): string {
   return doc.toString();
 }
 
-const HIGHLIGHT_LINE = /^!\[[^\]]*\]\(images\/highlight\.\w+\)(\{[^}\n]*\})?\n+/m;
+// a layout block of images, like the template's penguin pictures
+const IMAGE_LAYOUT = /^::: \{layout-ncol=\d+\}\n(?:!\[.*\]\(images\/.*\)\n|\s*\n)*:::\n+/m;
+/** An image at the very top of the homepage body is its highlight image. */
+export const LEADING_IMAGE = /^!\[([^\]]*)\]\((images\/[^)\s]+)\)(\{[^}\n]*\})?\n+/;
 
 export function customizeIndex(text: string, c: Pick<Customization, 'title' | 'subtitle' | 'description' | 'images'>): string {
   const edited = editFrontMatter(text, (doc) => {
@@ -119,30 +144,34 @@ export function customizeIndex(text: string, c: Pick<Customization, 'title' | 's
     setOptional(doc, 'subtitle', c.subtitle);
     setOptional(doc, 'description', c.description, true);
   });
-  // drop the layout block holding the template's penguin images, and any
-  // highlight image from an earlier customization
+  // drop the template's penguin images, and the highlight image from an
+  // earlier customization (it's added back below if there still is one)
+  const match = edited.match(FRONT_MATTER);
+  const head = match ? match[0] : '';
   const body = edited
-    .replace(/^::: \{layout-ncol=\d+\}\n(?:!\[.*\]\(images\/.*\)\n|\s*\n)*:::\n+/m, '')
-    .replace(HIGHLIGHT_LINE, '');
-  if (!c.images.highlight) return body;
+    .slice(head.length)
+    .replace(IMAGE_LAYOUT, (block) => (TEMPLATE_IMAGES.some((path) => block.includes(path)) ? '' : block))
+    .replace(/^\n+/, '')
+    .replace(LEADING_IMAGE, '');
+  if (!c.images.highlight) return `${head}\n${body}`;
   const alt = c.images.highlightAlt.trim().replace(/["\\]/g, '');
   const image = `![](${c.images.highlight})${alt ? `{fig-alt="${alt}"}` : ''}\n\n`;
-  // put it first, right after the front matter
-  const match = body.match(FRONT_MATTER);
-  return match ? `${match[0]}\n${image}${body.slice(match[0].length).replace(/^\n+/, '')}` : image + body;
+  return `${head}\n${image}${body}`;
 }
 
 export function customizeAbout(
   text: string,
   c: Pick<Customization, 'title' | 'description' | 'repoUrl' | 'links' | 'citation' | 'images'>,
+  keepBody = false,
 ): string {
   const edited = editFrontMatter(text, (doc) => {
     const links = [{ icon: 'github', text: 'GitHub', href: c.repoUrl }, ...c.links.filter((l) => l.text && l.href)];
     doc.setIn(['about', 'links'], doc.createNode(links));
     // the template's about image is penguin artwork. Its side-by-side layout,
     // trestles, leaves an empty column without an image, so use jolla then
+    const template = doc.getIn(['about', 'template']);
     if (c.images.highlight) {
-      doc.setIn(['about', 'template'], 'trestles');
+      if (!template || template === 'jolla') doc.setIn(['about', 'template'], 'trestles');
       doc.setIn(['about', 'image'], c.images.highlight);
       doc.setIn(['about', 'image-width'], '100%');
       if (c.images.highlightAlt.trim()) doc.setIn(['about', 'image-alt'], c.images.highlightAlt.trim());
@@ -151,14 +180,18 @@ export function customizeAbout(
       deletePath(doc, ['about', 'image']);
       deletePath(doc, ['about', 'image-width']);
       deletePath(doc, ['about', 'image-alt']);
-      doc.setIn(['about', 'template'], 'jolla');
+      if (!template || template === 'trestles') doc.setIn(['about', 'template'], 'jolla');
     }
     if (c.citation) doc.set('citation', doc.createNode(stripEmpty(c.citation)));
     else doc.delete('citation');
   });
   // the template's body describes the penguins dataset
-  const body = `## ${c.title}\n\n${c.description.trim()}\n`;
-  return replaceBody(edited, body);
+  return keepBody ? edited : replaceBody(edited, aboutBody(c.title, c.description));
+}
+
+/** The About page text the builder writes. */
+export function aboutBody(title: string, description: string): string {
+  return `## ${title}\n\n${description.trim()}\n`;
 }
 
 export function customizeTheme(text: string, primaryColor: string): string {
@@ -197,6 +230,19 @@ Made with [Datapage Builder](https://datapages.github.io/datapage-builder/).
 }
 
 const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+
+/** A page's YAML front matter as an object ({} if it has none). */
+export function readFrontMatter(text: string): Record<string, any> {
+  const match = text.match(FRONT_MATTER);
+  const value = match ? parse(match[1]) : null;
+  return value && typeof value === 'object' ? value : {};
+}
+
+/** A page's text after the front matter, without leading blank lines. */
+export function bodyOf(text: string): string {
+  const match = text.match(FRONT_MATTER);
+  return (match ? text.slice(match[0].length) : text).replace(/^\s*\n/, '');
+}
 
 function editFrontMatter(text: string, edit: (doc: Document) => void): string {
   const match = text.match(FRONT_MATTER);
