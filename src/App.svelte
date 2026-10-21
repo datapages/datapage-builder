@@ -38,11 +38,14 @@
 
 <div class="layout">
   <header>
-    <h1>Datapage Builder</h1>
-    <p class="muted">
-      Turn a CSV into a <a href="https://datapages.github.io/datapage/" target="_blank" rel="noopener">datapage</a>: an
-      interactive website for your data, hosted on GitHub Pages with the data on Redivis.
-    </p>
+    <img class="logo" src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width="88" height="88" />
+    <div>
+      <h1>Datapage Builder</h1>
+      <p class="muted">
+        Create a <a href="https://datapages.github.io/datapage/" target="_blank" rel="noopener">datapage</a>: an
+        interactive website for your data, hosted on GitHub Pages with the data on Redivis.
+      </p>
+    </div>
   </header>
 
   <nav aria-label="Steps">
@@ -90,6 +93,15 @@
   }
   header {
     grid-area: header;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  header p {
+    margin-bottom: 0;
+  }
+  .logo {
+    flex: none;
   }
   header h1 {
     margin: 0;
@@ -143,6 +155,10 @@
     color: var(--muted);
   }
   @media (max-width: 720px) {
+    .logo {
+      width: 64px;
+      height: 64px;
+    }
     .layout {
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas: 'header' 'nav' 'main';

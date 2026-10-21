@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Datapage Builder</title>
+  <circle cx="50" cy="52" r="47" fill="#0F7275"/>
+  <!-- flippers -->
+  <path d="M29 58 C 19 65, 17 76, 20 81 C 25 77, 29 71, 31 65 Z" fill="#1c1a20"/>
+  <path d="M71 58 C 81 65, 83 76, 80 81 C 75 77, 71 71, 69 65 Z" fill="#1c1a20"/>
+  <!-- feet, tapered like the flippers -->
+  <path d="M48 89 C 43 88.5, 37.5 89.5, 33.5 93 C 38.5 94.6, 44 94.2, 48.5 92.5 Z" fill="#FF7A02"/>
+  <path d="M52 89 C 57 88.5, 62.5 89.5, 66.5 93 C 61.5 94.6, 56 94.2, 51.5 92.5 Z" fill="#FF7A02"/>
+  <!-- body and belly -->
+  <path d="M50 30 C 67 30, 73 51, 73 67 C 73 83, 63 91, 50 91 C 37 91, 27 83, 27 67 C 27 51, 33 30, 50 30 Z" fill="#1c1a20"/>
+  <path d="M50 53.5 C 61 53.5, 65 63, 65 72.5 C 65 83, 58 88, 50 88 C 42 88, 35 83, 35 72.5 C 35 63, 39 53.5, 50 53.5 Z" fill="#ffffff"/>
+  <!-- eyes and beak -->
+  <circle cx="43" cy="43" r="4.2" fill="#ffffff"/>
+  <circle cx="57" cy="43" r="4.2" fill="#ffffff"/>
+  <circle cx="44" cy="43.6" r="2" fill="#1c1a20"/>
+  <circle cx="56" cy="43.6" r="2" fill="#1c1a20"/>
+  <path d="M45.8 46.6 L 54.2 46.6 L 50 52 Z" fill="#FF7A02"/>
+  <!-- wizard hat, tip kept inside the circle -->
+  <path d="M32 33 C 39 25, 45 16, 56 10 C 55 18, 59 26, 68 33 Z" fill="#C55CCA"/>
+  <ellipse cx="50" cy="34.5" rx="23" ry="4.5" fill="#A947AE"/>
+  <!-- sparkle -->
+  <path d="M51 15.5 Q 51.9 21.1 57.5 22 Q 51.9 22.9 51 28.5 Q 50.1 22.9 44.5 22 Q 50.1 21.1 51 15.5 Z" fill="#FF7A02"/>
+</svg>
