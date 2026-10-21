@@ -78,7 +78,7 @@
         <button class="link" onclick={() => { clearRedivisToken(); wizard.redivisUser = null; }}>Sign out</button>
       {:else}
         <p class="muted">
-          Used to create a public dataset and upload your CSV. No account? You can create one when you sign in.
+          Used to create a public dataset and upload your data.
         </p>
         <button onclick={connectRedivis} disabled={redivisBusy}>{redivisBusy ? 'Signing in…' : 'Sign in with Redivis'}</button>
       {/if}

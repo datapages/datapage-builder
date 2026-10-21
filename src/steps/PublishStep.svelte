@@ -82,15 +82,36 @@
       <h3>Next steps</h3>
       <p>
         Everything about your datapage lives in <a href={repoUrl} target="_blank" rel="noopener">{ref.owner}/{ref.repo}</a>,
-        and every change you push there rebuilds the site. The
-        <a href="https://github.com/datapages/datapage#readme" target="_blank" rel="noopener">template's README</a>
-        explains what each file does. A few things to do next:
+        and every change you push there rebuilds the site. Its
+        <a href={`${repoUrl}#readme`} target="_blank" rel="noopener">README</a> lists which file controls what. A few
+        things you might do next:
       </p>
       <ul>
-        <li>Add images to the homepage or About page: put them in <code>images/</code> and reference them from <code>index.qmd</code> or <code>about.qmd</code>.</li>
-        <li>Add a description and documentation to your dataset on Redivis{#if wizard.data.datasetUrl} (<a href={wizard.data.datasetUrl} target="_blank" rel="noopener">open it</a>){/if}.</li>
         <li>
-          To work on it locally: clone the repo, run <code>renv::restore()</code> in R, then <code>quarto preview</code>.
+          <strong>Update the data:</strong> release a new version of the dataset on Redivis, then rebuild the site by
+          running the "Render and Publish" workflow from the repo's
+          <a href={`${repoUrl}/actions`} target="_blank" rel="noopener">Actions tab</a>.
+        </li>
+        <li>
+          <strong>Document the dataset on Redivis</strong>{#if wizard.data.datasetUrl}{' '}(<a href={wizard.data.datasetUrl} target="_blank" rel="noopener">open it</a>){/if}:
+          add a description, methodology, and citation. Variable labels and descriptions can be edited there too.
+        </li>
+        <li>
+          <strong>Change the plots:</strong> edit <code>_config.yml</code> to choose which variables can be plotted
+          and the defaults.
+        </li>
+        <li>
+          <strong>Change the pages or images:</strong> edit <code>index.qmd</code> and <code>about.qmd</code>.
+          {#if wizard.customize.images.highlight || wizard.customize.images.icon}
+            To swap an image, replace the file in <code>images/</code>.
+          {:else}
+            To add a highlight image or icon, put it in <code>images/</code> and reference it from those files (or
+            <code>_quarto.yml</code> for the navbar logo).
+          {/if}
+        </li>
+        <li>
+          <strong>Work on it locally:</strong> clone the repo, run <code>renv::restore()</code> in R, then
+          <code>quarto preview</code>.
         </li>
       </ul>
     </div>
